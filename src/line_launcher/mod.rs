@@ -73,7 +73,6 @@ impl LineLauncher {
     }
 
     fn fire_note_on(&mut self, note_index: usize) -> () {
-        println!("firing note on: {}", note_index);
         self.send_midi_message(MidiMessage::NoteOn(
             CHANNEL,
             Note::from_u8_lossy(self.get_note_number(note_index)),
@@ -82,7 +81,6 @@ impl LineLauncher {
     }
 
     fn fire_note_off(&mut self, note_index: usize) -> () {
-        println!("firing note off: {}", note_index);
         self.send_midi_message(MidiMessage::NoteOff(
             CHANNEL,
             Note::from_u8_lossy(self.get_note_number(note_index)),
