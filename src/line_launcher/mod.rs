@@ -1,5 +1,6 @@
-use crate::BeatNumber;
 use std::sync::mpsc::Receiver;
+
+use crate::BeatNumber;
 
 pub struct LineLauncher {
     beat_message_receiver: Receiver<BeatNumber>,
