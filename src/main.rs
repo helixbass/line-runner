@@ -8,7 +8,7 @@ use line_runner::{LineLauncher, Message, MidiClockTracker};
 fn main() {
     let midi_out = MidiOutput::new("Line runner").unwrap();
 
-    let /*mut*/ _conn_out = midi_out.create_virtual("Line runner").unwrap();
+    let conn_out = midi_out.create_virtual("Line runner").unwrap();
 
     let midi_in = MidiInput::new("Line runner").unwrap();
 
@@ -28,7 +28,7 @@ fn main() {
         )
         .unwrap();
 
-    let line_launcher = LineLauncher::new(beat_message_receiver);
+    let mut line_launcher = LineLauncher::new(beat_message_receiver, conn_out);
     line_launcher.listen();
 }
 
