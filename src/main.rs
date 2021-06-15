@@ -4,7 +4,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use wmidi::MidiMessage;
 
-use line_runner::message::Message;
+use line_runner::{BeatNumber, LineLauncher, Message};
 
 fn main() {
     let midi_out = MidiOutput::new("Line runner").unwrap();
@@ -33,28 +33,6 @@ fn main() {
     line_launcher.listen();
 }
 
-struct LineLauncher {
-    beat_message_receiver: Receiver<BeatNumber>,
-}
-
-impl LineLauncher {
-    pub fn new(beat_message_receiver: Receiver<BeatNumber>) -> Self {
-        Self {
-            beat_message_receiver,
-        }
-    }
-
-    pub fn listen(&self) -> () {
-        loop {
-            let beat_message = self.beat_message_receiver.recv().unwrap();
-            println!(
-                "Received beat message, quarter note: {}, sixteenth note: {}",
-                beat_message.quarter_note, beat_message.sixteenth_note
-            );
-        }
-    }
-}
-
 fn handle_message(message: Message, midi_clock_tracker: &Arc<Mutex<MidiClockTracker>>) -> () {
     match message.message {
         MidiMessage::TimingClock => {
@@ -64,25 +42,7 @@ fn handle_message(message: Message, midi_clock_tracker: &Arc<Mutex<MidiClockTrac
     }
 }
 
-struct BeatNumber {
-    quarter_note: u32,
-    sixteenth_note: u32,
-}
-
-impl BeatNumber {
-    pub fn new(quarter_note: u32, sixteenth_note: u32) -> Self {
-        Self {
-            quarter_note,
-            sixteenth_note,
-        }
-    }
-}
-
 const TICKS_PER_QUARTER_NOTE: u32 = 24;
-
-// enum MidiClockTrackerMessage {
-//     BeatNumber(BeatNumber),
-// }
 
 struct MidiClockTracker {
     ticks_received: u32,
