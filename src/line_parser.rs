@@ -7,7 +7,6 @@ enum State {
     AwaitingNextToken,
     ParsedNoteLetter { note_letter: char },
     ParsedNoteName { note_name: String },
-    ParsedNoteNameAndOctave { note_name: String, octave: i8 },
 }
 
 pub fn parse_line(line_str: &str) -> Line {
@@ -42,11 +41,6 @@ impl LineParser {
                 (' ', State::AwaitingNextToken) => {
                     self.forward(1);
                 }
-                (' ', State::ParsedNoteNameAndOctave { .. }) => {
-                    self.mark_sustaining_note();
-                    self.finished_parsing_beat();
-                    self.forward(1);
-                }
                 ('C' | 'D' | 'E' | 'F' | 'G' | 'A' | 'B', State::AwaitingNextToken) => {
                     self.finish_note_if_sustaining(&mut line_notes);
                     self.state = State::ParsedNoteLetter {
@@ -65,20 +59,22 @@ impl LineParser {
                     '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9',
                     State::ParsedNoteLetter { note_letter },
                 ) => {
-                    self.state = State::ParsedNoteNameAndOctave {
-                        note_name: note_letter.to_string(),
-                        octave: next_char.to_digit(10).unwrap() as i8,
-                    };
+                    let note_letter = note_letter.to_string();
+                    self.mark_sustaining_note(note_letter, next_char);
+                    self.finished_parsing_beat();
                     self.forward(1);
                 }
                 (
                     '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9',
                     State::ParsedNoteName { note_name },
                 ) => {
-                    self.state = State::ParsedNoteNameAndOctave {
-                        note_name: note_name.clone(),
-                        octave: next_char.to_digit(10).unwrap() as i8,
-                    };
+                    let note_name = note_name.to_string();
+                    self.mark_sustaining_note(note_name, next_char);
+                    self.finished_parsing_beat();
+                    self.forward(1);
+                }
+                ('.', State::AwaitingNextToken) => {
+                    self.finished_parsing_beat();
                     self.forward(1);
                 }
                 _ => {
@@ -87,14 +83,7 @@ impl LineParser {
             }
         }
 
-        println!("State when finished chars: {:?}", self.state);
-
         match &self.state {
-            State::ParsedNoteNameAndOctave { .. } => {
-                self.mark_sustaining_note();
-                self.finished_parsing_beat();
-                self.finish_note_if_sustaining(&mut line_notes);
-            }
             State::AwaitingNextToken => {
                 self.finish_note_if_sustaining(&mut line_notes);
             }
@@ -175,13 +164,10 @@ impl LineParser {
         self.state = State::AwaitingNextToken;
     }
 
-    fn mark_sustaining_note(&mut self) {
-        if let State::ParsedNoteNameAndOctave { note_name, octave } = &self.state {
-            self.currently_sustained_note =
-                Some((self.get_note(note_name, *octave), self.current_beat_number));
-        } else {
-            panic!("Called mark_sustaining_note() when not in ParsedNoteNameAndOctave state");
-        }
+    fn mark_sustaining_note(&mut self, note_name: String, octave_char: char) {
+        let octave = octave_char.to_digit(10).unwrap() as i8;
+        self.currently_sustained_note =
+            Some((self.get_note(&note_name, octave), self.current_beat_number));
     }
 
     fn line_str(&self) -> String {
@@ -193,7 +179,7 @@ impl LineParser {
             line_notes.push(LineNote {
                 note,
                 start: beat_number,
-                duration: 1,
+                duration: self.current_beat_number.duration_since(&beat_number),
             });
         }
     }
@@ -260,7 +246,7 @@ mod tests {
     #[test]
     fn it_parses_sustain() {
         assert_eq!(
-            parse_line("C5 F4 G4 Bb4 C5 Db5 Eb5 F5 E5 . . ."),
+            parse_line("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . ."),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 0 },

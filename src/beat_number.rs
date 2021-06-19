@@ -19,6 +19,10 @@ impl BeatNumber {
             sixteenth_note: (self.sixteenth_note + num_sixteenths) % 16,
         }
     }
+
+    pub fn duration_since(&self, other: &BeatNumber) -> u32 {
+        (self.sixteenth_note + 16 - other.sixteenth_note) % 16
+    }
 }
 
 #[cfg(test)]
@@ -54,6 +58,22 @@ mod tests {
         assert_eq!(
             BeatNumber { sixteenth_note: 14 }.add_sixteenths(2),
             BeatNumber { sixteenth_note: 0 }
+        );
+    }
+
+    #[test]
+    fn duration_since_simple() {
+        assert_eq!(
+            BeatNumber { sixteenth_note: 14 }.duration_since(&BeatNumber { sixteenth_note: 2 }),
+            12
+        );
+    }
+
+    #[test]
+    fn duration_since_wrap_around() {
+        assert_eq!(
+            BeatNumber { sixteenth_note: 2 }.duration_since(&BeatNumber { sixteenth_note: 15 }),
+            3
         );
     }
 }
