@@ -44,8 +44,7 @@ impl MidiClockTracker {
 
         self.sender
             .send(BeatNumber {
-                quarter_note,
-                sixteenth_note,
+                sixteenth_note: quarter_note * 4 + sixteenth_note,
             })
             .unwrap();
     }
