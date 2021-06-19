@@ -30,7 +30,7 @@ impl LineLauncher {
         }
     }
 
-    pub fn listen(&mut self) -> () {
+    pub fn listen(&mut self) {
         loop {
             let beat_message = self.beat_message_receiver.recv().unwrap();
             match self.state {
@@ -55,24 +55,21 @@ impl LineLauncher {
         }
     }
 
-    fn play_note(&mut self) -> () {
-        match self.state {
-            State::Playing { next_note_index } => {
-                self.fire_note_on(next_note_index);
+    fn play_note(&mut self) {
+        if let State::Playing { next_note_index } = self.state {
+            self.fire_note_on(next_note_index);
 
-                self.state = if next_note_index == self.notes.len() - 1 {
-                    State::WaitingToFireFinalNoteOff
-                } else {
-                    State::Playing {
-                        next_note_index: next_note_index + 1,
-                    }
-                };
-            }
-            _ => (),
+            self.state = if next_note_index == self.notes.len() - 1 {
+                State::WaitingToFireFinalNoteOff
+            } else {
+                State::Playing {
+                    next_note_index: next_note_index + 1,
+                }
+            };
         }
     }
 
-    fn fire_note_on(&mut self, note_index: usize) -> () {
+    fn fire_note_on(&mut self, note_index: usize) {
         self.send_midi_message(MidiMessage::NoteOn(
             CHANNEL,
             Note::from_u8_lossy(self.get_note_number(note_index)),
@@ -80,7 +77,7 @@ impl LineLauncher {
         ));
     }
 
-    fn fire_note_off(&mut self, note_index: usize) -> () {
+    fn fire_note_off(&mut self, note_index: usize) {
         self.send_midi_message(MidiMessage::NoteOff(
             CHANNEL,
             Note::from_u8_lossy(self.get_note_number(note_index)),
@@ -88,7 +85,7 @@ impl LineLauncher {
         ));
     }
 
-    fn send_midi_message(&mut self, midi_message: MidiMessage) -> () {
+    fn send_midi_message(&mut self, midi_message: MidiMessage) {
         let mut bytes_buffer = vec![0; midi_message.bytes_size()];
         midi_message.copy_to_slice(&mut bytes_buffer).unwrap();
         self.output.send(&bytes_buffer).unwrap();
