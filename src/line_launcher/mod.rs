@@ -117,7 +117,6 @@ impl MidiMessageSender {
     }
 
     fn send_midi_message(&mut self, midi_message: MidiMessage) {
-        println!("sending midi message: {:?}", midi_message);
         let mut bytes_buffer = vec![0; midi_message.bytes_size()];
         midi_message.copy_to_slice(&mut bytes_buffer).unwrap();
         self.output.send(&bytes_buffer).unwrap();
