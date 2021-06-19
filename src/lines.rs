@@ -21,5 +21,5 @@ impl Line {
 }
 
 pub fn all_lines() -> Vec<Line> {
-    vec![parse_line("C5 F4 G4 Bb4 C5 Db5 Eb5 F5 E5 . . .")]
+    vec![parse_line("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . .")]
 }
