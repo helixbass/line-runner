@@ -22,12 +22,12 @@ impl MidiClockTracker {
         )
     }
 
-    pub fn tick(&mut self) -> () {
+    pub fn tick(&mut self) {
         self.ticks_received += 1;
         self.emit_beat_number();
     }
 
-    fn emit_beat_number(&self) -> () {
+    fn emit_beat_number(&self) {
         let use_ticks_received = self.ticks_received - 1;
 
         if use_ticks_received % (TICKS_PER_QUARTER_NOTE / 4) != 0 {
@@ -43,7 +43,10 @@ impl MidiClockTracker {
         let sixteenth_note = (ticks_this_quarter_note / (TICKS_PER_QUARTER_NOTE / 4)) + 1;
 
         self.sender
-            .send(BeatNumber::new(quarter_note, sixteenth_note))
+            .send(BeatNumber {
+                quarter_note,
+                sixteenth_note,
+            })
             .unwrap();
     }
 }

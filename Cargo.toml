@@ -1,5 +1,5 @@
 [package]
-name = "line_runner"
+name = "line-runner"
 version = "0.1.0"
 authors = ["Julian Rosse <julian@helixbass.net>"]
 edition = "2018"
