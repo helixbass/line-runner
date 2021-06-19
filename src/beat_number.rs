@@ -16,7 +16,7 @@ impl BeatNumber {
                 sixteenth_note: self.sixteenth_note - num_sixteenths,
             };
         }
-        let num_quarter_notes = (num_sixteenths / 4) + 1;
+        let num_quarter_notes = (num_sixteenths + 3) / 4;
         BeatNumber {
             quarter_note: (self.quarter_note as i32 - num_quarter_notes as i32 - 1) as u32 % 4 + 1,
             sixteenth_note: (self.sixteenth_note as i32 - num_sixteenths as i32 - 1) as u32 % 4 + 1,
@@ -54,6 +54,21 @@ mod tests {
             BeatNumber {
                 quarter_note: 1,
                 sixteenth_note: 4
+            }
+        );
+    }
+
+    #[test]
+    fn minus_sixteenths_4() {
+        assert_eq!(
+            BeatNumber {
+                quarter_note: 4,
+                sixteenth_note: 1
+            }
+            .minus_sixteenths(4),
+            BeatNumber {
+                quarter_note: 3,
+                sixteenth_note: 1
             }
         );
     }

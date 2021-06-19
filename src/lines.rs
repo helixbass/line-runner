@@ -89,7 +89,7 @@ pub fn all_lines() -> Vec<Line> {
                 quarter_note: 3,
                 sixteenth_note: 1,
             },
-            duration: 1,
+            duration: 4,
             note: Note::E4,
         },
     ])]
