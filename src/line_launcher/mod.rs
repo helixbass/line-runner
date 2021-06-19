@@ -34,9 +34,7 @@ impl LineLauncher {
         loop {
             let beat_message = self.beat_message_receiver.recv().unwrap();
             match self.state {
-                State::NotPlaying
-                    if beat_message.quarter_note == 1 && beat_message.sixteenth_note == 1 =>
-                {
+                State::NotPlaying if beat_message.is_beginning_of_measure() => {
                     self.state = State::Playing { next_note_index: 0 };
                     self.play_note();
                 }
