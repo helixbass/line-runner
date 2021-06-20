@@ -2,7 +2,7 @@ use midir::MidiOutputConnection;
 use std::sync::mpsc::Receiver;
 use wmidi::{Channel, MidiMessage, Note, Velocity};
 
-use crate::{lines, BeatNumber, Line};
+use crate::{line, BeatNumber, Line};
 
 #[derive(Debug)]
 enum State {
@@ -28,7 +28,7 @@ impl LineLauncher {
         Self {
             beat_message_receiver,
             state: State::NotPlaying,
-            lines: lines::all_lines(),
+            lines: line::all_lines(),
             midi_message_sender: MidiMessageSender { output },
         }
     }
