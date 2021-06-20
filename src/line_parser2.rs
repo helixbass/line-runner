@@ -1,7 +1,7 @@
 use crate::{BeatNumber, Line, LineNote, Result};
 use combine::{
     choice, many1, optional,
-    parser::char::{digit, space},
+    parser::char::{digit, space, spaces},
     sep_by, token, Parser,
 };
 
@@ -72,18 +72,20 @@ fn parse_line(line: &str) -> Result<Line> {
 
     let octave_parser = digit().map(|c| c.to_string().parse::<i8>().unwrap());
 
-    let sustain_parser =
-        optional(sep_by(token('.'), space()).map(|dots: Vec<_>| (dots.len() + 1) as u32))
-            .map(|duration| duration.unwrap_or(1));
+    let pitch_parser = (letter_parser, modifier_parser, octave_parser, spaces())
+        .map(|(letter, modifier, octave, _)| (letter, modifier, octave));
 
-    let note_parser = (
-        letter_parser,
-        modifier_parser,
-        octave_parser,
-        optional(space()),
-        sustain_parser,
+    let sustain_parser = optional(
+        (
+            sep_by(token('.'), space()).map(|dots: Vec<_>| (dots.len() + 1) as u32),
+            spaces(),
+        )
+            .map(|(duration, _)| duration),
     )
-        .map(|(letter, modifier, octave, _, duration)| Note {
+    .map(|duration| duration.unwrap_or(1));
+
+    let note_parser =
+        (pitch_parser, sustain_parser).map(|((letter, modifier, octave), duration)| Note {
             letter,
             modifier,
             octave,
