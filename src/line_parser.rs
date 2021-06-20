@@ -83,7 +83,11 @@ impl LineParser {
                     self.forward(1);
                 }
                 _ => {
-                    panic!("Couldn't parse line string: {}", self.line_str());
+                    panic!(
+                        "Couldn't parse line string: {}, next char: {}",
+                        self.line_str(),
+                        next_char
+                    );
                 }
             }
         }
@@ -352,6 +356,90 @@ mod tests {
                     start: BeatNumber { sixteenth_note: 8 },
                     duration: 4,
                     note: Note::E4,
+                },
+            ])
+        )
+    }
+
+    #[test]
+    fn it_parses_leading_rests() {
+        assert_eq!(
+            parse_line("- Db4 Bb3 Db4 C4 . Bb3 G3 F3 Bb3 F3 Gb3 G3 Gb3 F3 G3 E3 . . ."),
+            Line::new(vec![
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 1 },
+                    duration: 1,
+                    note: Note::Db4,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 2 },
+                    duration: 1,
+                    note: Note::Bb3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 3 },
+                    duration: 1,
+                    note: Note::Db4,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 4 },
+                    duration: 2,
+                    note: Note::C4,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 6 },
+                    duration: 1,
+                    note: Note::Bb3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 7 },
+                    duration: 1,
+                    note: Note::G3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 8 },
+                    duration: 1,
+                    note: Note::F3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 9 },
+                    duration: 1,
+                    note: Note::Bb3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 10 },
+                    duration: 1,
+                    note: Note::F3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 11 },
+                    duration: 1,
+                    note: Note::Gb3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 12 },
+                    duration: 1,
+                    note: Note::G3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 13 },
+                    duration: 1,
+                    note: Note::Gb3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 14 },
+                    duration: 1,
+                    note: Note::F3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 15 },
+                    duration: 1,
+                    note: Note::G3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 0 },
+                    duration: 4,
+                    note: Note::E3,
                 },
             ])
         )

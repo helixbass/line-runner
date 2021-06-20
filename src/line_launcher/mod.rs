@@ -39,7 +39,7 @@ impl LineLauncher {
             match self.state {
                 State::NotPlaying if beat_message.is_beginning_of_measure() => {
                     self.state = State::Playing {
-                        line_index: 0,
+                        line_index: 1,
                         next_note_index: 0,
                     };
                     self.possibly_trigger_notes(beat_message);
