@@ -1,4 +1,4 @@
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct BeatNumber {
     pub sixteenth_note: u32,
 }

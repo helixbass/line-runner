@@ -25,8 +25,8 @@ fn main() {
         )
         .unwrap();
 
-    let mut line_launcher = LineLauncher::new(beat_message_receiver, conn_out);
-    line_launcher.listen();
+    let line_launcher = LineLauncher::default();
+    line_launcher.listen(beat_message_receiver, conn_out);
 }
 
 fn handle_message(message: Message, midi_clock_tracker: &mut MidiClockTracker) {
