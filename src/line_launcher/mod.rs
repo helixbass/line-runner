@@ -2,83 +2,125 @@ use midir::MidiOutputConnection;
 use std::sync::mpsc::Receiver;
 use wmidi::{Channel, MidiMessage, Note, Velocity};
 
-use crate::BeatNumber;
+use crate::{line, BeatNumber, Line};
 
+#[derive(Clone, Copy, Debug)]
 enum State {
     NotPlaying,
-    Playing { next_note_index: usize },
-    WaitingToFireFinalNoteOff,
+    Playing {
+        line_index: usize,
+        next_note_index: usize,
+    },
 }
 
 const CHANNEL: Channel = Channel::Ch1;
 const VELOCITY: u8 = 100;
 
 pub struct LineLauncher {
-    beat_message_receiver: Receiver<BeatNumber>,
-    state: State,
-    notes: Vec<u8>,
-    output: MidiOutputConnection,
+    lines: Vec<Line>,
 }
 
 impl LineLauncher {
-    pub fn new(beat_message_receiver: Receiver<BeatNumber>, output: MidiOutputConnection) -> Self {
-        Self {
-            beat_message_receiver,
-            state: State::NotPlaying,
-            notes: vec![60, 53, 55, 58, 60, 61, 63, 65, 64],
-            output,
-        }
-    }
-
-    pub fn listen(&mut self) {
+    pub fn listen(
+        &self,
+        beat_message_receiver: Receiver<BeatNumber>,
+        output: MidiOutputConnection,
+    ) {
+        let mut midi_message_sender = MidiMessageSender { output };
+        let mut state = State::NotPlaying;
         loop {
-            let beat_message = self.beat_message_receiver.recv().unwrap();
-            match self.state {
+            let beat_message = beat_message_receiver.recv().unwrap();
+            state = match state {
                 State::NotPlaying if beat_message.is_beginning_of_measure() => {
-                    self.state = State::Playing { next_note_index: 0 };
-                    self.play_note();
+                    state = State::Playing {
+                        line_index: 0,
+                        next_note_index: 0,
+                    };
+                    self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
                 }
-                State::Playing { next_note_index } => {
-                    if next_note_index > 0 {
-                        self.fire_note_off(next_note_index - 1);
-                    }
-                    self.play_note();
+                State::Playing { .. } => {
+                    self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
                 }
-                State::WaitingToFireFinalNoteOff if beat_message.sixteenth_note == 1 => {
-                    self.fire_note_off(self.notes.len() - 1);
-                    self.state = State::NotPlaying
-                }
-                _ => {}
+                _ => state,
             }
         }
     }
 
-    fn play_note(&mut self) {
-        if let State::Playing { next_note_index } = self.state {
-            self.fire_note_on(next_note_index);
-
-            self.state = if next_note_index == self.notes.len() - 1 {
-                State::WaitingToFireFinalNoteOff
-            } else {
-                State::Playing {
-                    next_note_index: next_note_index + 1,
+    fn possibly_trigger_notes(
+        &self,
+        state: State,
+        midi_message_sender: &mut MidiMessageSender,
+        beat_message: BeatNumber,
+    ) -> State {
+        match state {
+            State::Playing {
+                line_index,
+                next_note_index,
+            } => {
+                let line = &self.lines[line_index];
+                let mut did_trigger_note_off = false;
+                if next_note_index > 0 {
+                    let last_played_note = &line.notes[next_note_index - 1];
+                    if beat_message.minus_sixteenths(last_played_note.duration)
+                        == last_played_note.start
+                    {
+                        midi_message_sender.fire_note_off(last_played_note.note);
+                        did_trigger_note_off = true;
+                    }
                 }
-            };
+                if next_note_index == line.notes.len() {
+                    return if did_trigger_note_off {
+                        State::NotPlaying
+                    } else {
+                        state
+                    };
+                }
+                let next_note = &line.notes[next_note_index];
+                if beat_message == next_note.start {
+                    midi_message_sender.fire_note_on(next_note.note);
+                    return State::Playing {
+                        line_index,
+                        next_note_index: next_note_index + 1,
+                    };
+                }
+
+                state
+            }
+            _ => {
+                panic!(
+                    "Called possibly_trigger_notes() while not playing: {:?}",
+                    state
+                );
+            }
         }
     }
+}
 
-    fn fire_note_on(&mut self, note_index: usize) {
+impl Default for LineLauncher {
+    fn default() -> Self {
+        Self {
+            lines: line::all_lines(),
+        }
+    }
+}
+
+struct MidiMessageSender {
+    output: MidiOutputConnection,
+}
+
+impl MidiMessageSender {
+    fn fire_note_on(&mut self, note: Note) {
         self.send_midi_message(MidiMessage::NoteOn(
             CHANNEL,
-            Note::from_u8_lossy(self.get_note_number(note_index)),
+            note,
             Velocity::from_u8_lossy(VELOCITY),
         ));
     }
 
-    fn fire_note_off(&mut self, note_index: usize) {
+    fn fire_note_off(&mut self, note: Note) {
         self.send_midi_message(MidiMessage::NoteOff(
             CHANNEL,
-            Note::from_u8_lossy(self.get_note_number(note_index)),
+            note,
             Velocity::from_u8_lossy(VELOCITY),
         ));
     }
@@ -87,9 +129,5 @@ impl LineLauncher {
         let mut bytes_buffer = vec![0; midi_message.bytes_size()];
         midi_message.copy_to_slice(&mut bytes_buffer).unwrap();
         self.output.send(&bytes_buffer).unwrap();
-    }
-
-    fn get_note_number(&self, note_index: usize) -> u8 {
-        self.notes[note_index]
     }
 }
