@@ -77,6 +77,11 @@ impl LineParser {
                     self.finished_parsing_beat();
                     self.forward(1);
                 }
+                ('-', State::AwaitingNextToken) => {
+                    self.finish_note_if_sustaining(&mut line_notes);
+                    self.finished_parsing_beat();
+                    self.forward(1);
+                }
                 _ => {
                     panic!("Couldn't parse line string: {}", self.line_str());
                 }
@@ -174,13 +179,14 @@ impl LineParser {
         self.chars.iter().collect()
     }
 
-    fn finish_note_if_sustaining(&self, line_notes: &mut Vec<LineNote>) {
+    fn finish_note_if_sustaining(&mut self, line_notes: &mut Vec<LineNote>) {
         if let Some((note, beat_number)) = self.currently_sustained_note {
             line_notes.push(LineNote {
                 note,
                 start: beat_number,
                 duration: self.current_beat_number.duration_since(&beat_number),
             });
+            self.currently_sustained_note = None;
         }
     }
 }
@@ -247,6 +253,60 @@ mod tests {
     fn it_parses_sustain() {
         assert_eq!(
             parse_line("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . ."),
+            Line::new(vec![
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 0 },
+                    duration: 1,
+                    note: Note::C4,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 1 },
+                    duration: 1,
+                    note: Note::F3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 2 },
+                    duration: 1,
+                    note: Note::G3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 3 },
+                    duration: 1,
+                    note: Note::Bb3,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 4 },
+                    duration: 1,
+                    note: Note::C4,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 5 },
+                    duration: 1,
+                    note: Note::Db4,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 6 },
+                    duration: 1,
+                    note: Note::Eb4,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 7 },
+                    duration: 1,
+                    note: Note::F4,
+                },
+                LineNote {
+                    start: BeatNumber { sixteenth_note: 8 },
+                    duration: 4,
+                    note: Note::E4,
+                },
+            ])
+        )
+    }
+
+    #[test]
+    fn it_parses_trailing_rests() {
+        assert_eq!(
+            parse_line("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . . - -"),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 0 },
