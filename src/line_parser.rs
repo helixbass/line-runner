@@ -171,7 +171,7 @@ impl LineParser {
     }
 
     fn line_str(&self) -> String {
-        self.chars.iter().collect::<String>()
+        self.chars.iter().collect()
     }
 
     fn finish_note_if_sustaining(&self, line_notes: &mut Vec<LineNote>) {
