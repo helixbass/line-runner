@@ -36,16 +36,15 @@ impl MidiClockTracker {
 
         let ticks_this_measure = use_ticks_received % (TICKS_PER_QUARTER_NOTE * 4);
 
-        let quarter_note = (ticks_this_measure / TICKS_PER_QUARTER_NOTE) + 1;
+        let quarter_note = ticks_this_measure / TICKS_PER_QUARTER_NOTE;
 
         let ticks_this_quarter_note = ticks_this_measure % TICKS_PER_QUARTER_NOTE;
 
-        let sixteenth_note = (ticks_this_quarter_note / (TICKS_PER_QUARTER_NOTE / 4)) + 1;
+        let sixteenth_note = ticks_this_quarter_note / (TICKS_PER_QUARTER_NOTE / 4);
 
         self.sender
             .send(BeatNumber {
-                quarter_note,
-                sixteenth_note,
+                sixteenth_note: quarter_note * 4 + sixteenth_note,
             })
             .unwrap();
     }
