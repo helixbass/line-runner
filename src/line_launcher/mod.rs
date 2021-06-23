@@ -1,4 +1,5 @@
 use midir::MidiOutputConnection;
+use rand::Rng;
 use std::sync::mpsc::Receiver;
 use wmidi::{Channel, MidiMessage, Note, Velocity};
 
@@ -33,7 +34,7 @@ impl LineLauncher {
             state = match state {
                 State::NotPlaying if beat_message.is_beginning_of_measure() => {
                     state = State::Playing {
-                        line_index: 0,
+                        line_index: rand::thread_rng().gen_range(0..self.lines.len()),
                         next_note_index: 0,
                     };
                     self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
