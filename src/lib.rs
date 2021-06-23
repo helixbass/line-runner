@@ -2,7 +2,6 @@ mod beat_number;
 mod line;
 mod line_launcher;
 mod line_parser;
-mod line_parser2;
 mod message;
 mod midi_clock_tracker;
 mod result;
