@@ -1,4 +1,4 @@
-use crate::{BeatNumber, Line, LineNote, Result};
+use crate::{BeatNumber, Letter, Line, LineNote, Modifier, Pitch, Result};
 use combine::{
     choice, many, many1, optional,
     parser::char::{digit, spaces},
@@ -6,26 +6,8 @@ use combine::{
 };
 
 #[derive(Clone, Copy, Debug)]
-enum Letter {
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-}
-
-#[derive(Clone, Copy, Debug)]
-enum Modifier {
-    Flat,
-    Natural,
-}
-
-#[derive(Clone, Copy, Debug)]
 struct Note {
-    letter: Letter,
-    modifier: Modifier,
+    pitch: Pitch,
     octave: i8,
     duration: u32,
 }
@@ -38,7 +20,7 @@ enum Value {
 
 impl Note {
     fn to_wmidi_note(self) -> wmidi::Note {
-        let letter_value = match self.letter {
+        let letter_value = match self.pitch.letter {
             Letter::C => 0,
             Letter::D => 2,
             Letter::E => 4,
@@ -48,7 +30,7 @@ impl Note {
             Letter::B => 11,
         };
 
-        let modifier_value = match self.modifier {
+        let modifier_value = match self.pitch.modifier {
             Modifier::Flat => -1,
             Modifier::Natural => 0,
         };
@@ -61,41 +43,24 @@ impl Note {
 }
 
 pub fn parse_line(line: &str) -> Result<Line> {
-    let letter_parser = choice((
-        token('A').map(|_| Letter::A),
-        token('B').map(|_| Letter::B),
-        token('C').map(|_| Letter::C),
-        token('D').map(|_| Letter::D),
-        token('E').map(|_| Letter::E),
-        token('F').map(|_| Letter::F),
-        token('G').map(|_| Letter::G),
-    ));
-
-    let flat_parser = token('b').map(|_| Modifier::Flat);
-
-    let modifier_parser =
-        optional(flat_parser).map(|modifier| modifier.unwrap_or(Modifier::Natural));
-
     let octave_parser = (optional(token('-')), digit()).map(|(negative, digit)| {
         digit.to_string().parse::<i8>().unwrap() * negative.map_or(1, |_| -1)
     });
 
-    let pitch_parser = (letter_parser, modifier_parser, octave_parser, spaces())
-        .map(|(letter, modifier, octave, _)| (letter, modifier, octave));
+    let pitch_parser =
+        (Pitch::parser(), octave_parser, spaces()).map(|(pitch, octave, _)| (pitch, octave));
 
     let dot_parser = (token('.'), spaces()).map(|_| ());
 
     let duration_parser = many(dot_parser).map(|dots: Vec<_>| (dots.len() + 1) as u32);
 
-    let note_parser =
-        (pitch_parser, duration_parser).map(|((letter, modifier, octave), duration)| {
-            Value::Note(Note {
-                letter,
-                modifier,
-                octave,
-                duration,
-            })
-        });
+    let note_parser = (pitch_parser, duration_parser).map(|((pitch, octave), duration)| {
+        Value::Note(Note {
+            pitch,
+            octave,
+            duration,
+        })
+    });
 
     let rest_parser = (token('-'), spaces()).map(|_| Value::Rest);
 

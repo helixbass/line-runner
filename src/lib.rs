@@ -10,7 +10,13 @@ pub use line_launcher::LineLauncher;
 pub use message::Message;
 pub use midi_clock_tracker::MidiClockTracker;
 pub use model::{
+    chord::Chord,
+    letter::Letter,
     line::{Line, LineNote},
     line_parser::parse_line,
+    modifier::Modifier,
+    pitch::Pitch,
+    quality::Quality,
+    song::Song,
 };
 pub use result::Result;
