@@ -3,7 +3,7 @@ use rand::Rng;
 use std::sync::mpsc::Receiver;
 use wmidi::{Channel, MidiMessage, Note, Velocity};
 
-use crate::{line, BeatNumber, Line};
+use crate::{BeatNumber, Line};
 
 #[derive(Clone, Copy, Debug)]
 enum State {
@@ -99,9 +99,7 @@ impl LineLauncher {
 
 impl Default for LineLauncher {
     fn default() -> Self {
-        Self {
-            lines: line::all_lines(),
-        }
+        Self { lines: Line::all() }
     }
 }
 
