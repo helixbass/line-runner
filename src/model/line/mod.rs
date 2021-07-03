@@ -1,6 +1,8 @@
 use wmidi::Note;
 
-use crate::{parse_line, BeatNumber};
+use crate::{BeatNumber, Result};
+
+mod parser;
 
 #[derive(PartialEq, Debug)]
 pub struct LineNote {
@@ -26,7 +28,11 @@ impl Line {
             "C4 F3 G3 Bb3 C4 Db4 Bb3 Db4 C4 . .",
         ]
         .iter()
-        .map(|line_str| parse_line(line_str).unwrap())
+        .map(|line_str| Self::parse(line_str).unwrap())
         .collect()
+    }
+
+    pub fn parse(string: &str) -> Result<Self> {
+        parser::parse(string)
     }
 }

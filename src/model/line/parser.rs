@@ -42,7 +42,7 @@ impl Note {
     }
 }
 
-pub fn parse_line(line: &str) -> Result<Line> {
+pub fn parse(line: &str) -> Result<Line> {
     let octave_parser = (optional(token('-')), digit()).map(|(negative, digit)| {
         digit.to_string().parse::<i8>().unwrap() * negative.map_or(1, |_| -1)
     });
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn it_parses_line_starting_on_downbeat() {
         assert_eq!(
-            parse_line("C4 F-1 G3 Bb3 C4 Db4 Eb4 F4 E4").unwrap(),
+            parse("C4 F-1 G3 Bb3 C4 Db4 Eb4 F4 E4").unwrap(),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 0 },
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn it_parses_sustain() {
         assert_eq!(
-            parse_line("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . .").unwrap(),
+            parse("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . .").unwrap(),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 0 },
@@ -220,7 +220,7 @@ mod tests {
     #[test]
     fn it_parses_trailing_rests() {
         assert_eq!(
-            parse_line("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . . - -").unwrap(),
+            parse("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . . - -").unwrap(),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 0 },
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn it_parses_leading_rests() {
         assert_eq!(
-            parse_line("- Db4 Bb3 Db4 C4 . Bb3 G3 F3 Bb3 F3 Gb3 G3 Gb3 F3 G3 E3 . . .").unwrap(),
+            parse("- Db4 Bb3 Db4 C4 . Bb3 G3 F3 Bb3 F3 Gb3 G3 Gb3 F3 G3 E3 . . .").unwrap(),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 1 },

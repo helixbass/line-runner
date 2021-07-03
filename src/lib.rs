@@ -13,7 +13,6 @@ pub use model::{
     chord::Chord,
     letter::Letter,
     line::{Line, LineNote},
-    line_parser::parse_line,
     modifier::Modifier,
     pitch::Pitch,
     progression::Progression,
