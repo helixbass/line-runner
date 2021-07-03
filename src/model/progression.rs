@@ -40,6 +40,12 @@ impl fmt::Display for Progression {
     }
 }
 
+impl Default for Progression {
+    fn default() -> Self {
+        Self::parse("C").unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

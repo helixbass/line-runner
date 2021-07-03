@@ -3,7 +3,7 @@ use rand::Rng;
 use std::sync::mpsc::Receiver;
 use wmidi::{Channel, MidiMessage, Note, Velocity};
 
-use crate::{BeatNumber, Line};
+use crate::{BeatNumber, Line, Progression};
 
 #[derive(Clone, Copy, Debug)]
 enum State {
@@ -11,6 +11,7 @@ enum State {
     Playing {
         line_index: usize,
         next_note_index: usize,
+        pitch_offset: i8,
     },
 }
 
@@ -19,6 +20,7 @@ const VELOCITY: u8 = 100;
 
 pub struct LineLauncher {
     lines: Vec<Line>,
+    pub progression: Progression,
 }
 
 impl LineLauncher {
@@ -29,13 +31,19 @@ impl LineLauncher {
     ) {
         let mut midi_message_sender = MidiMessageSender { output };
         let mut state = State::NotPlaying;
+        let mut has_gotten_first_downbeat_message = false;
+        let mut chord_index: usize = 0;
         loop {
             let beat_message = beat_message_receiver.recv().unwrap();
+            if beat_message.is_beginning_of_measure() && has_gotten_first_downbeat_message {
+                chord_index = (chord_index + 1) % self.progression.chords.len();
+            }
             state = match state {
                 State::NotPlaying if beat_message.is_beginning_of_measure() => {
                     state = State::Playing {
                         line_index: rand::thread_rng().gen_range(0..self.lines.len()),
                         next_note_index: 0,
+                        pitch_offset: self.progression.chords[chord_index].pitch.index() as i8,
                     };
                     self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
                 }
@@ -43,6 +51,9 @@ impl LineLauncher {
                     self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
                 }
                 _ => state,
+            };
+            if !has_gotten_first_downbeat_message {
+                has_gotten_first_downbeat_message = true;
             }
         }
     }
@@ -57,6 +68,7 @@ impl LineLauncher {
             State::Playing {
                 line_index,
                 next_note_index,
+                pitch_offset,
             } => {
                 let line = &self.lines[line_index];
                 let mut did_trigger_note_off = false;
@@ -65,7 +77,8 @@ impl LineLauncher {
                     if beat_message.minus_sixteenths(last_played_note.duration)
                         == last_played_note.start
                     {
-                        midi_message_sender.fire_note_off(last_played_note.note);
+                        midi_message_sender
+                            .fire_note_off(last_played_note.note.step(pitch_offset).unwrap());
                         did_trigger_note_off = true;
                     }
                 }
@@ -78,10 +91,11 @@ impl LineLauncher {
                 }
                 let next_note = &line.notes[next_note_index];
                 if beat_message == next_note.start {
-                    midi_message_sender.fire_note_on(next_note.note);
+                    midi_message_sender.fire_note_on(next_note.note.step(pitch_offset).unwrap());
                     return State::Playing {
                         line_index,
                         next_note_index: next_note_index + 1,
+                        pitch_offset,
                     };
                 }
 
@@ -99,7 +113,10 @@ impl LineLauncher {
 
 impl Default for LineLauncher {
     fn default() -> Self {
-        Self { lines: Line::all() }
+        Self {
+            lines: Line::all(),
+            progression: Progression::default(),
+        }
     }
 }
 

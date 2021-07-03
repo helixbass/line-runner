@@ -2,7 +2,7 @@ use midir::os::unix::{VirtualInput, VirtualOutput};
 use midir::{MidiInput, MidiOutput};
 use wmidi::MidiMessage;
 
-use line_runner::{LineLauncher, Message, MidiClockTracker};
+use line_runner::{LineLauncher, Message, MidiClockTracker, Progression};
 
 fn main() {
     let midi_out = MidiOutput::new("Line runner").unwrap();
@@ -25,7 +25,8 @@ fn main() {
         )
         .unwrap();
 
-    let line_launcher = LineLauncher::default();
+    let mut line_launcher = LineLauncher::default();
+    line_launcher.progression = Progression::parse("C C C C Eb Eb Eb Eb").unwrap();
     line_launcher.listen(beat_message_receiver, conn_out);
 }
 
