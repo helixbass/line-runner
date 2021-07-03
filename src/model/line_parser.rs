@@ -47,14 +47,14 @@ pub fn parse_line(line: &str) -> Result<Line> {
         digit.to_string().parse::<i8>().unwrap() * negative.map_or(1, |_| -1)
     });
 
-    let pitch_parser =
+    let pitch_octave_parser =
         (Pitch::parser(), octave_parser, spaces()).map(|(pitch, octave, _)| (pitch, octave));
 
     let dot_parser = (token('.'), spaces()).map(|_| ());
 
     let duration_parser = many(dot_parser).map(|dots: Vec<_>| (dots.len() + 1) as u32);
 
-    let note_parser = (pitch_parser, duration_parser).map(|((pitch, octave), duration)| {
+    let note_parser = (pitch_octave_parser, duration_parser).map(|((pitch, octave), duration)| {
         Value::Note(Note {
             pitch,
             octave,

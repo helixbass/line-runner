@@ -36,12 +36,12 @@ mod tests {
     fn parser() {
         let chords: Vec<_> = Pitch::all()
             .into_iter()
-            .flat_map(|p| Quality::iter().map(move |q| Chord::new(p, q)))
+            .flat_map(|pitch| Quality::iter().map(move |qquality| Chord::new(pitch, qquality)))
             .collect();
 
         let parsed: Vec<_> = chords
             .iter()
-            .map(|c| c.to_string())
+            .map(|chord| chord.to_string())
             .map(|string| Chord::parser::<&str>().parse(&string).unwrap().0)
             .collect();
 

@@ -16,7 +16,7 @@ pub use model::{
     line_parser::parse_line,
     modifier::Modifier,
     pitch::Pitch,
+    progression::Progression,
     quality::Quality,
-    song::Song,
 };
 pub use result::Result;

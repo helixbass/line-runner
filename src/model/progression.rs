@@ -3,11 +3,11 @@ use combine::{parser::char::spaces, sep_by, Parser, Stream};
 use std::fmt;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Song {
+pub struct Progression {
     pub chords: Vec<Chord>,
 }
 
-impl Song {
+impl Progression {
     pub fn new(chords: &[Chord]) -> Self {
         Self {
             chords: chords.to_vec(),
@@ -22,12 +22,12 @@ impl Song {
     }
 }
 
-impl fmt::Display for Song {
+impl fmt::Display for Progression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string = self
             .chords
             .iter()
-            .map(|c| c.to_string())
+            .map(|chord| chord.to_string())
             .collect::<Vec<_>>()
             .join(" ");
         f.write_str(&string)
@@ -40,14 +40,14 @@ mod tests {
 
     #[test]
     fn parser() {
-        let songs = vec!["A Bm CM7 D7 Em7".to_string()];
+        let progressions = vec!["A Bm CM7 D7 Em7".to_string()];
 
-        let parsed: Vec<_> = songs
+        let parsed: Vec<_> = progressions
             .iter()
-            .map(|s| Song::parser::<&str>().parse(s).unwrap().0)
+            .map(|string| Progression::parser::<&str>().parse(string).unwrap().0)
             .map(|s| s.to_string())
             .collect();
 
-        assert_eq!(parsed, songs)
+        assert_eq!(parsed, progressions)
     }
 }

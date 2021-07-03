@@ -27,7 +27,7 @@ impl Quality {
             attempt(string("m7").map(|_| MinorSeventh)),
             string("m").map(|_| Minor),
         )))
-        .map(|q| q.unwrap_or(Major))
+        .map(|quality| quality.unwrap_or(Major))
     }
 }
 
@@ -39,7 +39,7 @@ mod test {
     #[test]
     fn parser() {
         let parsed: Vec<_> = Quality::iter()
-            .map(|q| q.to_string())
+            .map(|quality| quality.to_string())
             .map(|string| Quality::parser::<&str>().parse(&string).unwrap().0)
             .collect();
         let qualities: Vec<_> = Quality::iter().collect();
