@@ -151,11 +151,11 @@ impl LineLauncher {
     }
 }
 
-impl Default for LineLauncher {
-    fn default() -> Self {
+impl From<Progression> for LineLauncher {
+    fn from(progression: Progression) -> Self {
         Self {
             lines: Line::all(),
-            progression: Progression::default(),
+            progression,
         }
     }
 }

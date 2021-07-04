@@ -25,8 +25,7 @@ fn main() {
         )
         .unwrap();
 
-    let mut line_launcher = LineLauncher::default();
-    line_launcher.progression = Progression::parse("C C C C Eb Eb Eb Eb").unwrap();
+    let line_launcher: LineLauncher = Progression::parse("C C C C Eb Eb Eb Eb").unwrap().into();
     line_launcher.listen(beat_message_receiver, conn_out);
 }
 
