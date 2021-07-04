@@ -32,8 +32,4 @@ impl Line {
         .collect::<Result<Vec<_>>>()
         .unwrap()
     }
-
-    pub fn parse(string: &str) -> Result<Self> {
-        parser::parse(string)
-    }
 }
