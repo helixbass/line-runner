@@ -1,4 +1,4 @@
-use crate::{BeatNumber, Letter, Line, LineNote, Modifier, Pitch, Result};
+use crate::{BeatNumber, Line, LineNote, Pitch, Result};
 use combine::{
     choice, many, many1, optional,
     parser::char::{digit, spaces},
@@ -20,24 +20,9 @@ enum Value {
 
 impl Note {
     fn to_wmidi_note(self) -> wmidi::Note {
-        let letter_value = match self.pitch.letter {
-            Letter::C => 0,
-            Letter::D => 2,
-            Letter::E => 4,
-            Letter::F => 5,
-            Letter::G => 7,
-            Letter::A => 9,
-            Letter::B => 11,
-        };
-
-        let modifier_value = match self.pitch.modifier {
-            Modifier::Flat => -1,
-            Modifier::Natural => 0,
-        };
-
         let octave_value = self.octave + 1;
 
-        let value = octave_value * 12 + letter_value + modifier_value;
+        let value = octave_value * 12 + self.pitch.index();
         wmidi::Note::from_u8_lossy(value as u8)
     }
 }

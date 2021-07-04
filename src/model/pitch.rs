@@ -25,7 +25,7 @@ impl Pitch {
         Letter::iter().flat_map(|l| Modifier::iter().map(move |m| Pitch::new(l, m)))
     }
 
-    pub fn index(&self) -> usize {
+    pub fn index(&self) -> i8 {
         match (self.letter, self.modifier) {
             (Letter::C, Modifier::Natural) => 0,
             (Letter::D, Modifier::Flat) => 1,

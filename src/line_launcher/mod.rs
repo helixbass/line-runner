@@ -86,7 +86,7 @@ impl LineLauncher {
                     state = PlayingState::Playing {
                         line_index: rand::thread_rng().gen_range(0..self.lines.len()),
                         next_note_index: 0,
-                        pitch_offset: progression_state.current_chord().pitch.index() as i8,
+                        pitch_offset: progression_state.current_chord().pitch.index(),
                     };
                     self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
                 }
