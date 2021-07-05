@@ -1,6 +1,11 @@
 use midir::MidiOutputConnection;
 use rand::Rng;
-use std::sync::{mpsc::Receiver, Arc, Mutex};
+use std::sync::{
+    mpsc::{self, Receiver, Sender},
+    Arc, Mutex,
+};
+use std::thread::{self, JoinHandle};
+use std::time::SystemTime;
 use wmidi::{Channel, MidiMessage, Note, Velocity};
 
 use crate::{BeatNumber, Chord, Line, Progression};
@@ -63,6 +68,70 @@ impl<'progression> ProgressionState<'progression> {
 const CHANNEL: Channel = Channel::Ch1;
 const VELOCITY: u8 = 100;
 
+struct NoteOffInstruction {
+    note: Note,
+    time: SystemTime,
+}
+
+struct NoteOffTriggerer {
+    receiver: Receiver<NoteOffInstruction>,
+    midi_message_sender: Arc<Mutex<MidiMessageSender>>,
+    playing_state: Arc<Mutex<PlayingState>>,
+}
+
+impl NoteOffTriggerer {
+    pub fn new(
+        midi_message_sender: Arc<Mutex<MidiMessageSender>>,
+        playing_state: Arc<Mutex<PlayingState>>,
+    ) -> (Self, Sender<NoteOffInstruction>) {
+        let (sender, receiver) = mpsc::channel();
+
+        let note_off_triggerer = Self {
+            receiver,
+            midi_message_sender,
+            playing_state,
+        };
+
+        (note_off_triggerer, sender)
+    }
+
+    pub fn listen(self) -> JoinHandle<()> {
+        thread::spawn(move || loop {
+            let note_off_instruction = self.receiver.recv().unwrap();
+
+            let now = SystemTime::now();
+            let from_now = note_off_instruction
+                .time
+                .duration_since(now)
+                .unwrap_or_default();
+
+            spin_sleep::sleep(from_now);
+
+            let mut playing_state = self.playing_state.lock().unwrap();
+
+            if let PlayingState::Playing {
+                has_fired_previous_note_off: false,
+                line_index,
+                next_note_index,
+                pitch_offset,
+            } = *playing_state
+            {
+                self.midi_message_sender
+                    .lock()
+                    .unwrap()
+                    .fire_note_off(note_off_instruction.note);
+
+                *playing_state = PlayingState::Playing {
+                    line_index,
+                    next_note_index,
+                    pitch_offset,
+                    has_fired_previous_note_off: true,
+                }
+            }
+        })
+    }
+}
+
 pub struct LineLauncher {
     lines: Vec<Line>,
     pub progression: Progression,
@@ -77,6 +146,9 @@ impl LineLauncher {
         let midi_message_sender = Arc::new(Mutex::new(MidiMessageSender { output }));
         let state_mutex = Arc::new(Mutex::new(PlayingState::NotPlaying));
         let mut progression_state = ProgressionState::new(&self.progression);
+        let (note_off_triggerer, note_off_sender) =
+            NoteOffTriggerer::new(midi_message_sender.clone(), state_mutex.clone());
+        note_off_triggerer.listen();
         loop {
             let beat_message = beat_message_receiver.recv().unwrap();
             if beat_message.is_beginning_of_measure() {
