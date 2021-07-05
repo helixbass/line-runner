@@ -27,8 +27,8 @@ impl Line {
             "- Db4 Bb3 Db4 C4 . Bb3 G3 F3 Bb3 F3 Gb3 G3 Gb3 F3 G3 E3 . . .",
             "C4 F3 G3 Bb3 C4 Db4 Bb3 Db4 C4 . .",
         ]
-        .iter()
-        .map(|line_str| Self::parse(line_str))
+        .into_iter()
+        .map(Self::parse)
         .collect::<Result<Vec<_>>>()
         .unwrap()
     }
