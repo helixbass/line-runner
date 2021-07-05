@@ -1,6 +1,6 @@
 use midir::MidiOutputConnection;
 use rand::Rng;
-use std::sync::mpsc::Receiver;
+use std::sync::{mpsc::Receiver, Arc, Mutex};
 use wmidi::{Channel, MidiMessage, Note, Velocity};
 
 use crate::{BeatNumber, Chord, Line, Progression};
@@ -73,7 +73,7 @@ impl LineLauncher {
         beat_message_receiver: Receiver<BeatNumber>,
         output: MidiOutputConnection,
     ) {
-        let mut midi_message_sender = MidiMessageSender { output };
+        let midi_message_sender = Arc::new(Mutex::new(MidiMessageSender { output }));
         let mut state = PlayingState::NotPlaying;
         let mut progression_state = ProgressionState::new(&self.progression);
         loop {
@@ -88,10 +88,10 @@ impl LineLauncher {
                         next_note_index: 0,
                         pitch_offset: progression_state.current_chord().pitch.index(),
                     };
-                    self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
+                    self.possibly_trigger_notes(state, &midi_message_sender, beat_message)
                 }
                 PlayingState::Playing { .. } => {
-                    self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
+                    self.possibly_trigger_notes(state, &midi_message_sender, beat_message)
                 }
                 _ => state,
             };
@@ -101,7 +101,7 @@ impl LineLauncher {
     fn possibly_trigger_notes(
         &self,
         state: PlayingState,
-        midi_message_sender: &mut MidiMessageSender,
+        midi_message_sender: &Arc<Mutex<MidiMessageSender>>,
         beat_message: BeatNumber,
     ) -> PlayingState {
         match state {
@@ -118,6 +118,8 @@ impl LineLauncher {
                         == last_played_note.start
                     {
                         midi_message_sender
+                            .lock()
+                            .unwrap()
                             .fire_note_off(last_played_note.note.step(pitch_offset).unwrap());
                         did_trigger_note_off = true;
                     }
@@ -131,7 +133,10 @@ impl LineLauncher {
                 }
                 let next_note = &line.notes[next_note_index];
                 if beat_message == next_note.start {
-                    midi_message_sender.fire_note_on(next_note.note.step(pitch_offset).unwrap());
+                    midi_message_sender
+                        .lock()
+                        .unwrap()
+                        .fire_note_on(next_note.note.step(pitch_offset).unwrap());
                     return PlayingState::Playing {
                         line_index,
                         next_note_index: next_note_index + 1,
