@@ -1,4 +1,4 @@
-use crate::Chord;
+use crate::{Chord, Result};
 use combine::{parser::char::spaces, sep_by, Parser, Stream};
 use std::fmt;
 
@@ -20,6 +20,12 @@ impl Progression {
     {
         sep_by(Chord::parser(), spaces()).map(|chords: Vec<_>| Self::new(&chords))
     }
+
+    pub fn parse(string: &str) -> Result<Self> {
+        let (result, _) = Self::parser::<&str>().parse(string)?;
+
+        Ok(result)
+    }
 }
 
 impl fmt::Display for Progression {
@@ -39,12 +45,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parser() {
+    fn parse() {
         let progressions = vec!["A Bm CM7 D7 Em7".to_string()];
 
         let parsed: Vec<_> = progressions
             .iter()
-            .map(|string| Progression::parser::<&str>().parse(string).unwrap().0)
+            .map(|string| Progression::parse(string).unwrap())
             .map(|s| s.to_string())
             .collect();
 

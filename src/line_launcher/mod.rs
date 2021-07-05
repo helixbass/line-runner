@@ -3,15 +3,60 @@ use rand::Rng;
 use std::sync::mpsc::Receiver;
 use wmidi::{Channel, MidiMessage, Note, Velocity};
 
-use crate::{BeatNumber, Line};
+use crate::{BeatNumber, Chord, Line, Progression};
 
 #[derive(Clone, Copy, Debug)]
-enum State {
+enum PlayingState {
     NotPlaying,
     Playing {
         line_index: usize,
         next_note_index: usize,
+        pitch_offset: i8,
     },
+}
+
+enum ProgressionChordIndexState {
+    HaventStarted,
+    AtChordIndex(usize),
+}
+
+struct ProgressionState<'progression> {
+    progression: &'progression Progression,
+    chord_index_state: ProgressionChordIndexState,
+}
+
+impl<'progression> ProgressionState<'progression> {
+    pub fn new(progression: &'progression Progression) -> Self {
+        Self {
+            progression,
+            chord_index_state: ProgressionChordIndexState::HaventStarted,
+        }
+    }
+
+    pub fn chord_index(&self) -> usize {
+        if let ProgressionChordIndexState::AtChordIndex(chord_index) = self.chord_index_state {
+            chord_index
+        } else {
+            0
+        }
+    }
+
+    pub fn current_chord(&self) -> &Chord {
+        &self.progression.chords[self.chord_index()]
+    }
+
+    pub fn tick_measure(&mut self) {
+        self.chord_index_state = match self.chord_index_state {
+            ProgressionChordIndexState::HaventStarted => {
+                ProgressionChordIndexState::AtChordIndex(0)
+            }
+            ProgressionChordIndexState::AtChordIndex(chord_index) => {
+                ProgressionChordIndexState::AtChordIndex(
+                    (chord_index + 1) % self.progression.chords.len(),
+                )
+            }
+        }
+    }
 }
 
 const CHANNEL: Channel = Channel::Ch1;
@@ -19,6 +64,7 @@ const VELOCITY: u8 = 100;
 
 pub struct LineLauncher {
     lines: Vec<Line>,
+    pub progression: Progression,
 }
 
 impl LineLauncher {
@@ -28,35 +74,41 @@ impl LineLauncher {
         output: MidiOutputConnection,
     ) {
         let mut midi_message_sender = MidiMessageSender { output };
-        let mut state = State::NotPlaying;
+        let mut state = PlayingState::NotPlaying;
+        let mut progression_state = ProgressionState::new(&self.progression);
         loop {
             let beat_message = beat_message_receiver.recv().unwrap();
+            if beat_message.is_beginning_of_measure() {
+                progression_state.tick_measure();
+            }
             state = match state {
-                State::NotPlaying if beat_message.is_beginning_of_measure() => {
-                    state = State::Playing {
+                PlayingState::NotPlaying if beat_message.is_beginning_of_measure() => {
+                    state = PlayingState::Playing {
                         line_index: rand::thread_rng().gen_range(0..self.lines.len()),
                         next_note_index: 0,
+                        pitch_offset: progression_state.current_chord().pitch.index(),
                     };
                     self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
                 }
-                State::Playing { .. } => {
+                PlayingState::Playing { .. } => {
                     self.possibly_trigger_notes(state, &mut midi_message_sender, beat_message)
                 }
                 _ => state,
-            }
+            };
         }
     }
 
     fn possibly_trigger_notes(
         &self,
-        state: State,
+        state: PlayingState,
         midi_message_sender: &mut MidiMessageSender,
         beat_message: BeatNumber,
-    ) -> State {
+    ) -> PlayingState {
         match state {
-            State::Playing {
+            PlayingState::Playing {
                 line_index,
                 next_note_index,
+                pitch_offset,
             } => {
                 let line = &self.lines[line_index];
                 let mut did_trigger_note_off = false;
@@ -65,23 +117,25 @@ impl LineLauncher {
                     if beat_message.minus_sixteenths(last_played_note.duration)
                         == last_played_note.start
                     {
-                        midi_message_sender.fire_note_off(last_played_note.note);
+                        midi_message_sender
+                            .fire_note_off(last_played_note.note.step(pitch_offset).unwrap());
                         did_trigger_note_off = true;
                     }
                 }
                 if next_note_index == line.notes.len() {
                     return if did_trigger_note_off {
-                        State::NotPlaying
+                        PlayingState::NotPlaying
                     } else {
                         state
                     };
                 }
                 let next_note = &line.notes[next_note_index];
                 if beat_message == next_note.start {
-                    midi_message_sender.fire_note_on(next_note.note);
-                    return State::Playing {
+                    midi_message_sender.fire_note_on(next_note.note.step(pitch_offset).unwrap());
+                    return PlayingState::Playing {
                         line_index,
                         next_note_index: next_note_index + 1,
+                        pitch_offset,
                     };
                 }
 
@@ -97,9 +151,12 @@ impl LineLauncher {
     }
 }
 
-impl Default for LineLauncher {
-    fn default() -> Self {
-        Self { lines: Line::all() }
+impl From<Progression> for LineLauncher {
+    fn from(progression: Progression) -> Self {
+        Self {
+            lines: Line::all(),
+            progression,
+        }
     }
 }
 

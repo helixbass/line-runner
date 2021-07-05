@@ -1,8 +1,8 @@
-use crate::{BeatNumber, Letter, Line, LineNote, Modifier, Pitch, Result};
+use crate::{BeatNumber, Line, LineNote, Pitch, Result};
 use combine::{
     choice, many, many1, optional,
     parser::char::{digit, spaces},
-    token, Parser,
+    token, Parser, Stream,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -20,57 +20,50 @@ enum Value {
 
 impl Note {
     fn to_wmidi_note(self) -> wmidi::Note {
-        let letter_value = match self.pitch.letter {
-            Letter::C => 0,
-            Letter::D => 2,
-            Letter::E => 4,
-            Letter::F => 5,
-            Letter::G => 7,
-            Letter::A => 9,
-            Letter::B => 11,
-        };
-
-        let modifier_value = match self.pitch.modifier {
-            Modifier::Flat => -1,
-            Modifier::Natural => 0,
-        };
-
         let octave_value = self.octave + 1;
 
-        let value = octave_value * 12 + letter_value + modifier_value;
+        let value = octave_value * 12 + self.pitch.index();
         wmidi::Note::from_u8_lossy(value as u8)
     }
 }
 
-pub fn parse_line(line: &str) -> Result<Line> {
-    let octave_parser = (optional(token('-')), digit()).map(|(negative, digit)| {
-        digit.to_string().parse::<i8>().unwrap() * negative.map_or(1, |_| -1)
-    });
+impl Line {
+    pub fn parser<Input>() -> impl Parser<Input, Output = Self>
+    where
+        Input: Stream<Token = char>,
+    {
+        let octave_parser = (optional(token('-')), digit()).map(|(negative, digit)| {
+            digit.to_string().parse::<i8>().unwrap() * negative.map_or(1, |_| -1)
+        });
 
-    let pitch_octave_parser =
-        (Pitch::parser(), octave_parser, spaces()).map(|(pitch, octave, _)| (pitch, octave));
+        let pitch_octave_parser =
+            (Pitch::parser(), octave_parser, spaces()).map(|(pitch, octave, _)| (pitch, octave));
 
-    let dot_parser = (token('.'), spaces()).map(|_| ());
+        let dot_parser = (token('.'), spaces()).map(|_| ());
 
-    let duration_parser = many(dot_parser).map(|dots: Vec<_>| (dots.len() + 1) as u32);
+        let duration_parser = many(dot_parser).map(|dots: Vec<_>| (dots.len() + 1) as u32);
 
-    let note_parser = (pitch_octave_parser, duration_parser).map(|((pitch, octave), duration)| {
-        Value::Note(Note {
-            pitch,
-            octave,
-            duration,
-        })
-    });
+        let note_parser =
+            (pitch_octave_parser, duration_parser).map(|((pitch, octave), duration)| {
+                Value::Note(Note {
+                    pitch,
+                    octave,
+                    duration,
+                })
+            });
 
-    let rest_parser = (token('-'), spaces()).map(|_| Value::Rest);
+        let rest_parser = (token('-'), spaces()).map(|_| Value::Rest);
 
-    let value_parser = choice((note_parser, rest_parser));
+        let value_parser = choice((note_parser, rest_parser));
 
-    let mut line_parser = many1(value_parser).map(|notes: Vec<_>| to_line(&notes));
+        many1(value_parser).map(|notes: Vec<_>| to_line(&notes))
+    }
 
-    let (result, _) = line_parser.parse(line)?;
+    pub fn parse(string: &str) -> Result<Self> {
+        let (result, _) = Self::parser::<&str>().parse(string)?;
 
-    Ok(result)
+        Ok(result)
+    }
 }
 
 fn to_line(notes: &[Value]) -> Line {
@@ -107,12 +100,10 @@ mod tests {
 
     use crate::{BeatNumber, Line, LineNote};
 
-    use super::*;
-
     #[test]
     fn it_parses_line_starting_on_downbeat() {
         assert_eq!(
-            parse_line("C4 F-1 G3 Bb3 C4 Db4 Eb4 F4 E4").unwrap(),
+            Line::parse("C4 F-1 G3 Bb3 C4 Db4 Eb4 F4 E4").unwrap(),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 0 },
@@ -166,7 +157,7 @@ mod tests {
     #[test]
     fn it_parses_sustain() {
         assert_eq!(
-            parse_line("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . .").unwrap(),
+            Line::parse("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . .").unwrap(),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 0 },
@@ -220,7 +211,7 @@ mod tests {
     #[test]
     fn it_parses_trailing_rests() {
         assert_eq!(
-            parse_line("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . . - -").unwrap(),
+            Line::parse("C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . . - -").unwrap(),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 0 },
@@ -274,7 +265,7 @@ mod tests {
     #[test]
     fn it_parses_leading_rests() {
         assert_eq!(
-            parse_line("- Db4 Bb3 Db4 C4 . Bb3 G3 F3 Bb3 F3 Gb3 G3 Gb3 F3 G3 E3 . . .").unwrap(),
+            Line::parse("- Db4 Bb3 Db4 C4 . Bb3 G3 F3 Bb3 F3 Gb3 G3 Gb3 F3 G3 E3 . . .").unwrap(),
             Line::new(vec![
                 LineNote {
                     start: BeatNumber { sixteenth_note: 1 },
