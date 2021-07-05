@@ -12,6 +12,7 @@ enum PlayingState {
         line_index: usize,
         next_note_index: usize,
         pitch_offset: i8,
+        has_fired_previous_note_off: bool,
     },
 }
 
@@ -74,26 +75,28 @@ impl LineLauncher {
         output: MidiOutputConnection,
     ) {
         let midi_message_sender = Arc::new(Mutex::new(MidiMessageSender { output }));
-        let mut state = PlayingState::NotPlaying;
+        let state_mutex = Arc::new(Mutex::new(PlayingState::NotPlaying));
         let mut progression_state = ProgressionState::new(&self.progression);
         loop {
             let beat_message = beat_message_receiver.recv().unwrap();
             if beat_message.is_beginning_of_measure() {
                 progression_state.tick_measure();
             }
-            state = match state {
+            let mut state = state_mutex.lock().unwrap();
+            *state = match *state {
                 PlayingState::NotPlaying if beat_message.is_beginning_of_measure() => {
-                    state = PlayingState::Playing {
+                    *state = PlayingState::Playing {
                         line_index: rand::thread_rng().gen_range(0..self.lines.len()),
                         next_note_index: 0,
                         pitch_offset: progression_state.current_chord().pitch.index(),
+                        has_fired_previous_note_off: true,
                     };
-                    self.possibly_trigger_notes(state, &midi_message_sender, beat_message)
+                    self.possibly_trigger_notes(*state, &midi_message_sender, beat_message)
                 }
                 PlayingState::Playing { .. } => {
-                    self.possibly_trigger_notes(state, &midi_message_sender, beat_message)
+                    self.possibly_trigger_notes(*state, &midi_message_sender, beat_message)
                 }
-                _ => state,
+                _ => *state,
             };
         }
     }
@@ -109,13 +112,15 @@ impl LineLauncher {
                 line_index,
                 next_note_index,
                 pitch_offset,
+                has_fired_previous_note_off,
             } => {
                 let line = &self.lines[line_index];
                 let mut did_trigger_note_off = false;
                 if next_note_index > 0 {
                     let last_played_note = &line.notes[next_note_index - 1];
-                    if beat_message.minus_sixteenths(last_played_note.duration)
-                        == last_played_note.start
+                    if !has_fired_previous_note_off
+                        && beat_message.minus_sixteenths(last_played_note.duration)
+                            == last_played_note.start
                     {
                         midi_message_sender
                             .lock()
@@ -141,6 +146,7 @@ impl LineLauncher {
                         line_index,
                         next_note_index: next_note_index + 1,
                         pitch_offset,
+                        has_fired_previous_note_off: false,
                     };
                 }
 
