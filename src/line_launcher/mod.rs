@@ -71,6 +71,7 @@ const VELOCITY: u8 = 100;
 struct NoteOffInstruction {
     note: Note,
     time: SystemTime,
+    note_index: usize,
 }
 
 struct NoteOffTriggerer {
@@ -109,24 +110,26 @@ impl NoteOffTriggerer {
 
             let mut playing_state = self.playing_state.lock().unwrap();
 
-            if let PlayingState::Playing {
-                has_fired_previous_note_off: false,
-                line_index,
-                next_note_index,
-                pitch_offset,
-            } = *playing_state
-            {
-                self.midi_message_sender
-                    .lock()
-                    .unwrap()
-                    .fire_note_off(note_off_instruction.note);
-
-                *playing_state = PlayingState::Playing {
+            match *playing_state {
+                PlayingState::Playing {
+                    has_fired_previous_note_off: false,
                     line_index,
                     next_note_index,
                     pitch_offset,
-                    has_fired_previous_note_off: true,
+                } if next_note_index == note_off_instruction.note_index + 1 => {
+                    self.midi_message_sender
+                        .lock()
+                        .unwrap()
+                        .fire_note_off(note_off_instruction.note);
+
+                    *playing_state = PlayingState::Playing {
+                        line_index,
+                        next_note_index,
+                        pitch_offset,
+                        has_fired_previous_note_off: true,
+                    };
                 }
+                _ => (),
             }
         })
     }
@@ -228,6 +231,7 @@ impl LineLauncher {
                         .send(NoteOffInstruction {
                             note: next_note_with_offset,
                             time: SystemTime::now() + Duration::from_millis(50),
+                            note_index: next_note_index,
                         })
                         .unwrap();
                     return PlayingState::Playing {
