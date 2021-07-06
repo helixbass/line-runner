@@ -76,13 +76,13 @@ struct NoteOffInstruction {
 
 struct NoteOffTriggerer {
     receiver: Receiver<NoteOffInstruction>,
-    midi_message_sender: Arc<Mutex<MidiMessageSender>>,
+    midi_message_sender: MidiMessageSender,
     playing_state: Arc<Mutex<PlayingState>>,
 }
 
 impl NoteOffTriggerer {
     pub fn new(
-        midi_message_sender: Arc<Mutex<MidiMessageSender>>,
+        midi_message_sender: MidiMessageSender,
         playing_state: Arc<Mutex<PlayingState>>,
     ) -> (Self, Sender<NoteOffInstruction>) {
         let (sender, receiver) = mpsc::channel();
@@ -118,8 +118,6 @@ impl NoteOffTriggerer {
                     pitch_offset,
                 } if next_note_index == note_off_instruction.note_index + 1 => {
                     self.midi_message_sender
-                        .lock()
-                        .unwrap()
                         .fire_note_off(note_off_instruction.note);
 
                     *playing_state = PlayingState::Playing {
@@ -146,7 +144,7 @@ impl LineLauncher {
         beat_message_receiver: Receiver<BeatNumber>,
         output: MidiOutputConnection,
     ) {
-        let midi_message_sender = Arc::new(Mutex::new(MidiMessageSender { output }));
+        let midi_message_sender = MidiMessageSender::new(output);
         let state_mutex = Arc::new(Mutex::new(PlayingState::NotPlaying));
         let mut progression_state = ProgressionState::new(&self.progression);
         let (note_off_triggerer, note_off_sender) =
@@ -187,7 +185,7 @@ impl LineLauncher {
     fn possibly_trigger_notes(
         &self,
         state: PlayingState,
-        midi_message_sender: &Arc<Mutex<MidiMessageSender>>,
+        midi_message_sender: &MidiMessageSender,
         beat_message: BeatNumber,
         note_off_sender: &Sender<NoteOffInstruction>,
     ) -> PlayingState {
@@ -207,8 +205,6 @@ impl LineLauncher {
                             == last_played_note.start
                     {
                         midi_message_sender
-                            .lock()
-                            .unwrap()
                             .fire_note_off(last_played_note.note.step(pitch_offset).unwrap());
                         did_trigger_note_off = true;
                     }
@@ -223,10 +219,7 @@ impl LineLauncher {
                 let next_note = &line.notes[next_note_index];
                 if beat_message == next_note.start {
                     let next_note_with_offset = next_note.note.step(pitch_offset).unwrap();
-                    midi_message_sender
-                        .lock()
-                        .unwrap()
-                        .fire_note_on(next_note_with_offset);
+                    midi_message_sender.fire_note_on(next_note_with_offset);
                     note_off_sender
                         .send(NoteOffInstruction {
                             note: next_note_with_offset,
@@ -263,12 +256,19 @@ impl From<Progression> for LineLauncher {
     }
 }
 
+#[derive(Clone)]
 struct MidiMessageSender {
-    output: MidiOutputConnection,
+    output: Arc<Mutex<MidiOutputConnection>>,
 }
 
 impl MidiMessageSender {
-    fn fire_note_on(&mut self, note: Note) {
+    fn new(output: MidiOutputConnection) -> Self {
+        Self {
+            output: Arc::new(Mutex::new(output)),
+        }
+    }
+
+    fn fire_note_on(&self, note: Note) {
         self.send_midi_message(MidiMessage::NoteOn(
             CHANNEL,
             note,
@@ -276,7 +276,7 @@ impl MidiMessageSender {
         ));
     }
 
-    fn fire_note_off(&mut self, note: Note) {
+    fn fire_note_off(&self, note: Note) {
         self.send_midi_message(MidiMessage::NoteOff(
             CHANNEL,
             note,
@@ -284,9 +284,9 @@ impl MidiMessageSender {
         ));
     }
 
-    fn send_midi_message(&mut self, midi_message: MidiMessage) {
+    fn send_midi_message(&self, midi_message: MidiMessage) {
         let mut bytes_buffer = vec![0; midi_message.bytes_size()];
         midi_message.copy_to_slice(&mut bytes_buffer).unwrap();
-        self.output.send(&bytes_buffer).unwrap();
+        self.output.lock().unwrap().send(&bytes_buffer).unwrap();
     }
 }
