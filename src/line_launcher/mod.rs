@@ -32,9 +32,13 @@ enum DurationBetweenSixteenthNotes {
 }
 
 impl DurationBetweenSixteenthNotes {
-    pub fn process_beat_message(&mut self, _beat_message: &BeatNumber) {
+    pub fn new() -> Self {
+        Self::Uninitialized
+    }
+
+    pub fn process_beat_message(&mut self, _beat_message: &BeatNumber) -> Self {
         let now = SystemTime::now();
-        *self = match *self {
+        match self {
             DurationBetweenSixteenthNotes::Uninitialized => {
                 DurationBetweenSixteenthNotes::PartiallyInitialized {
                     last_timestamp: now,
@@ -44,15 +48,17 @@ impl DurationBetweenSixteenthNotes {
             | DurationBetweenSixteenthNotes::Initialized { last_timestamp, .. } => {
                 DurationBetweenSixteenthNotes::Initialized {
                     last_timestamp: now,
-                    last_duration: now.duration_since(last_timestamp).unwrap(),
+                    last_duration: now.duration_since(*last_timestamp).unwrap(),
                 }
             }
         }
     }
 
     pub fn get_duration(&self) -> Option<Duration> {
-        match *self {
-            DurationBetweenSixteenthNotes::Initialized { last_duration, .. } => Some(last_duration),
+        match self {
+            DurationBetweenSixteenthNotes::Initialized { last_duration, .. } => {
+                Some(*last_duration)
+            }
             _ => None,
         }
     }
@@ -75,11 +81,11 @@ impl LineLauncher {
         let (note_off_triggerer, note_off_sender) =
             NoteOffTriggerer::new(midi_message_sender.clone(), state_mutex.clone());
         note_off_triggerer.listen();
-        let mut duration_between_sixteenth_notes: DurationBetweenSixteenthNotes =
-            DurationBetweenSixteenthNotes::Uninitialized;
+        let mut duration_between_sixteenth_notes = DurationBetweenSixteenthNotes::new();
         loop {
             let beat_message = beat_message_receiver.recv().unwrap();
-            duration_between_sixteenth_notes.process_beat_message(&beat_message);
+            duration_between_sixteenth_notes =
+                duration_between_sixteenth_notes.process_beat_message(&beat_message);
             if beat_message.is_beginning_of_measure() {
                 progression_state.tick_measure();
             }
