@@ -36,7 +36,7 @@ impl DurationBetweenSixteenthNotes {
         Self::Uninitialized
     }
 
-    pub fn process_beat_message(&mut self, _beat_message: &BeatNumber) -> Self {
+    pub fn process_beat_message(&self, _beat_message: &BeatNumber) -> Self {
         let now = SystemTime::now();
         match self {
             DurationBetweenSixteenthNotes::Uninitialized => {
