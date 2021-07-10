@@ -1,13 +1,13 @@
 use crate::{config, config::midi::MidiSlider, midi, Message};
 use bus::BusReader;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use wmidi::Channel;
 
 pub fn listen_for_duration_control_changes(
     mut midi_messages_receiver: BusReader<Message>,
-    value: Arc<Mutex<f64>>,
-) {
+) -> Receiver<f64> {
+    let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let slider = MidiSlider {
             channel: Channel::from_index(15).unwrap(),
@@ -16,11 +16,11 @@ pub fn listen_for_duration_control_changes(
 
         for midi_message in midi_messages_receiver.iter() {
             if let Some(new_value) = control_value_ratio_from_midi_message(&midi_message, slider) {
-                let mut value = value.lock().unwrap();
-                *value = new_value;
+                sender.send(new_value).unwrap();
             }
         }
     });
+    receiver
 }
 
 fn control_value_ratio_from_midi_message(
