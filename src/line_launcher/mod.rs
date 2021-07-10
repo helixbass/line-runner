@@ -82,9 +82,9 @@ impl LineLauncher {
             NoteOffTriggerer::new(midi_message_sender.clone(), state_mutex.clone());
         note_off_triggerer.listen();
         let mut duration_between_sixteenth_notes = DurationBetweenSixteenthNotes::new();
-        let duration_percent = Arc::new(Mutex::new(100.0));
+        let duration_ratio = Arc::new(Mutex::new(1.0));
         let mut midi_message_bus = Bus::new(100);
-        listen_for_duration_control_changes(midi_message_bus.add_rx(), duration_percent.clone());
+        listen_for_duration_control_changes(midi_message_bus.add_rx(), duration_ratio.clone());
         thread::spawn(move || {
             for midi_message in midi_messages.iter() {
                 midi_message_bus.broadcast(midi_message);
@@ -112,7 +112,7 @@ impl LineLauncher {
                         beat_message,
                         &note_off_sender,
                         &duration_between_sixteenth_notes,
-                        &duration_percent,
+                        &duration_ratio,
                     )
                 }
                 PlayingState::Playing { .. } => self.possibly_trigger_notes(
@@ -121,7 +121,7 @@ impl LineLauncher {
                     beat_message,
                     &note_off_sender,
                     &duration_between_sixteenth_notes,
-                    &duration_percent,
+                    &duration_ratio,
                 ),
                 _ => *state,
             };
@@ -135,7 +135,7 @@ impl LineLauncher {
         beat_message: BeatNumber,
         note_off_sender: &Sender<NoteOffInstruction>,
         duration_between_sixteenth_notes: &DurationBetweenSixteenthNotes,
-        duration_percent: &Arc<Mutex<f64>>,
+        duration_ratio: &Arc<Mutex<f64>>,
     ) -> PlayingState {
         match state {
             PlayingState::Playing {
@@ -176,7 +176,7 @@ impl LineLauncher {
                                 note: next_note_with_offset,
                                 time: SystemTime::now()
                                     + duration_between_sixteenth_notes
-                                        .mul_f64(*duration_percent.lock().unwrap() / 100.0),
+                                        .mul_f64(*duration_ratio.lock().unwrap()),
                                 note_index: next_note_index,
                             })
                             .unwrap();

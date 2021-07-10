@@ -16,21 +16,21 @@ pub fn listen_for_duration_control_changes(
 
         for midi_message in midi_messages_receiver.iter() {
             let midi_messages = vec![midi_message];
-            if let Some(new_value) = control_value_from_midi_messages(&midi_messages, slider) {
+            if let Some(new_value) = control_value_ratio_from_midi_messages(&midi_messages, slider)
+            {
                 let mut value = value.lock().unwrap();
-                *value = get_percent(new_value);
+                *value = new_value;
             }
         }
     });
 }
 
-fn control_value_from_midi_messages(midi_messages: &[Message], slider: MidiSlider) -> Option<u32> {
+fn control_value_ratio_from_midi_messages(
+    midi_messages: &[Message],
+    slider: MidiSlider,
+) -> Option<f64> {
     let control_value = midi::latest_control_value(slider, midi_messages)?;
-    let new_value = midi::interpolate_control_value(0, 100, control_value);
+    let new_value = midi::interpolate_control_value(0.0, 1.0, control_value);
 
     Some(new_value)
-}
-
-fn get_percent(value: u32) -> f64 {
-    value as f64
 }
