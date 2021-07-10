@@ -1,7 +1,4 @@
 pub mod message;
-mod midi_message_publisher;
-
-pub use midi_message_publisher::MidiMessagePublisher;
 
 use crate::{config::midi::MidiSlider, Message, Result};
 use anyhow::anyhow;
