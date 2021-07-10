@@ -103,7 +103,7 @@ impl LineLauncher {
         &self,
         beat_message_receiver: Receiver<BeatNumber>,
         output: MidiOutputConnection,
-        midi_messages: Receiver<Message>,
+        midi_messages: Option<Receiver<Message>>,
     ) {
         let midi_message_sender = MidiMessageSender::new(output);
         let state_mutex = Arc::new(Mutex::new(PlayingState::NotPlaying));
@@ -116,11 +116,13 @@ impl LineLauncher {
         let mut midi_message_bus = Bus::new(100);
         let duration_ratio_receiver =
             listen_for_duration_control_changes(midi_message_bus.add_rx());
-        thread::spawn(move || {
-            for midi_message in midi_messages.iter() {
-                midi_message_bus.broadcast(midi_message);
-            }
-        });
+        if let Some(midi_messages) = midi_messages {
+            thread::spawn(move || {
+                for midi_message in midi_messages.iter() {
+                    midi_message_bus.broadcast(midi_message);
+                }
+            });
+        }
         for message in
             get_combined_message_receiver(beat_message_receiver, duration_ratio_receiver).iter()
         {

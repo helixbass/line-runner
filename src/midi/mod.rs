@@ -20,7 +20,7 @@ pub fn listen_for_input(port_name: &str) -> Result<Receiver<Message>> {
     Ok(receiver)
 }
 
-fn port_names() -> Result<Vec<String>> {
+pub fn port_names() -> Result<Vec<String>> {
     let midi_input = midi_input()?;
     midi_input
         .ports()

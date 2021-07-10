@@ -1,8 +1,9 @@
 use crate::Result;
-// use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use std::convert::TryInto;
 use wmidi::{Channel, ControlFunction, U7};
 
+#[derive(Debug, Deserialize)]
 pub struct Midi {
     pub port: Option<String>,
 }
