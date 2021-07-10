@@ -29,18 +29,15 @@ fn port_names() -> Result<Vec<String>> {
         .collect()
 }
 
-pub fn latest_control_value(slider: MidiSlider, messages: &[Message]) -> Option<ControlValue> {
-    messages
-        .iter()
-        .rev()
-        .find_map(|message| match message.message {
-            MidiMessage::ControlChange(channel, function, value)
-                if channel == slider.channel && function == slider.control_change =>
-            {
-                Some(value)
-            }
-            _ => None,
-        })
+pub fn get_control_value(slider: MidiSlider, message: &Message) -> Option<ControlValue> {
+    match message.message {
+        MidiMessage::ControlChange(channel, function, value)
+            if channel == slider.channel && function == slider.control_change =>
+        {
+            Some(value)
+        }
+        _ => None,
+    }
 }
 
 pub fn interpolate_control_value<TValue: Num + From<u8> + Copy>(
