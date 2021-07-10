@@ -1,12 +1,14 @@
+use bus::Bus;
 use midir::MidiOutputConnection;
 use rand::Rng;
 use std::sync::{
     mpsc::{Receiver, Sender},
     Arc, Mutex,
 };
+use std::thread;
 use std::time::{Duration, SystemTime};
 
-use crate::{BeatNumber, Line, Progression};
+use crate::{BeatNumber, Line, Message, Progression};
 
 mod midi_message_sender;
 use midi_message_sender::MidiMessageSender;
@@ -19,6 +21,9 @@ use playing_state::PlayingState;
 
 mod progression_state;
 use progression_state::ProgressionState;
+
+mod duration_slider_listener;
+use duration_slider_listener::listen_for_duration_control_changes;
 
 enum DurationBetweenSixteenthNotes {
     Uninitialized,
@@ -39,26 +44,20 @@ impl DurationBetweenSixteenthNotes {
     pub fn process_beat_message(&self, _beat_message: &BeatNumber) -> Self {
         let now = SystemTime::now();
         match self {
-            DurationBetweenSixteenthNotes::Uninitialized => {
-                DurationBetweenSixteenthNotes::PartiallyInitialized {
-                    last_timestamp: now,
-                }
-            }
-            DurationBetweenSixteenthNotes::PartiallyInitialized { last_timestamp }
-            | DurationBetweenSixteenthNotes::Initialized { last_timestamp, .. } => {
-                DurationBetweenSixteenthNotes::Initialized {
-                    last_timestamp: now,
-                    last_duration: now.duration_since(*last_timestamp).unwrap(),
-                }
-            }
+            Self::Uninitialized => Self::PartiallyInitialized {
+                last_timestamp: now,
+            },
+            Self::PartiallyInitialized { last_timestamp }
+            | Self::Initialized { last_timestamp, .. } => Self::Initialized {
+                last_timestamp: now,
+                last_duration: now.duration_since(*last_timestamp).unwrap(),
+            },
         }
     }
 
     pub fn get_duration(&self) -> Option<Duration> {
         match self {
-            DurationBetweenSixteenthNotes::Initialized { last_duration, .. } => {
-                Some(*last_duration)
-            }
+            Self::Initialized { last_duration, .. } => Some(*last_duration),
             _ => None,
         }
     }
@@ -74,6 +73,7 @@ impl LineLauncher {
         &self,
         beat_message_receiver: Receiver<BeatNumber>,
         output: MidiOutputConnection,
+        midi_messages: Receiver<Message>,
     ) {
         let midi_message_sender = MidiMessageSender::new(output);
         let state_mutex = Arc::new(Mutex::new(PlayingState::NotPlaying));
@@ -82,6 +82,14 @@ impl LineLauncher {
             NoteOffTriggerer::new(midi_message_sender.clone(), state_mutex.clone());
         note_off_triggerer.listen();
         let mut duration_between_sixteenth_notes = DurationBetweenSixteenthNotes::new();
+        let duration_ratio = Arc::new(Mutex::new(1.0));
+        let mut midi_message_bus = Bus::new(100);
+        listen_for_duration_control_changes(midi_message_bus.add_rx(), duration_ratio.clone());
+        thread::spawn(move || {
+            for midi_message in midi_messages.iter() {
+                midi_message_bus.broadcast(midi_message);
+            }
+        });
         loop {
             let beat_message = beat_message_receiver.recv().unwrap();
             duration_between_sixteenth_notes =
@@ -104,6 +112,7 @@ impl LineLauncher {
                         beat_message,
                         &note_off_sender,
                         &duration_between_sixteenth_notes,
+                        &duration_ratio,
                     )
                 }
                 PlayingState::Playing { .. } => self.possibly_trigger_notes(
@@ -112,6 +121,7 @@ impl LineLauncher {
                     beat_message,
                     &note_off_sender,
                     &duration_between_sixteenth_notes,
+                    &duration_ratio,
                 ),
                 _ => *state,
             };
@@ -125,6 +135,7 @@ impl LineLauncher {
         beat_message: BeatNumber,
         note_off_sender: &Sender<NoteOffInstruction>,
         duration_between_sixteenth_notes: &DurationBetweenSixteenthNotes,
+        duration_ratio: &Arc<Mutex<f64>>,
     ) -> PlayingState {
         match state {
             PlayingState::Playing {
@@ -164,7 +175,8 @@ impl LineLauncher {
                             .send(NoteOffInstruction {
                                 note: next_note_with_offset,
                                 time: SystemTime::now()
-                                    + duration_between_sixteenth_notes.mul_f64(0.5),
+                                    + duration_between_sixteenth_notes
+                                        .mul_f64(*duration_ratio.lock().unwrap()),
                                 note_index: next_note_index,
                             })
                             .unwrap();
