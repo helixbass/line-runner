@@ -44,7 +44,7 @@ fn main() -> Result<()> {
     };
 
     let line_launcher: LineLauncher = Progression::parse("C C C C Eb Eb Eb Eb").unwrap().into();
-    line_launcher.listen(beat_message_receiver, conn_out, midi_messages);
+    line_launcher.listen(beat_message_receiver, conn_out, midi_messages, config);
 
     Ok(())
 }
