@@ -8,7 +8,7 @@ mod result;
 
 pub use beat_number::BeatNumber;
 pub use line_launcher::LineLauncher;
-pub use midi::{message::Message, MidiMessageHandler, MidiMessagePublisher};
+pub use midi::{message::Message, MidiMessagePublisher};
 pub use midi_clock_tracker::MidiClockTracker;
 pub use model::{
     chord::Chord,
