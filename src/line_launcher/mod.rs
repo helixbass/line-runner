@@ -8,7 +8,7 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-use crate::{BeatNumber, Config, Line, Message, Progression};
+use crate::{BeatNumber, Line, Message, MidiSlider, Progression};
 
 mod midi_message_sender;
 use midi_message_sender::MidiMessageSender;
@@ -99,12 +99,19 @@ pub struct LineLauncher {
 }
 
 impl LineLauncher {
+    pub fn from(progression: Progression) -> Self {
+        Self {
+            lines: Line::all(),
+            progression,
+        }
+    }
+
     pub fn listen(
         &self,
         beat_message_receiver: Receiver<BeatNumber>,
         output: MidiOutputConnection,
         midi_messages: Option<Receiver<Message>>,
-        config: Config,
+        duration_ratio_slider: Option<MidiSlider>,
     ) {
         let midi_message_sender = MidiMessageSender::new(output);
         let state_mutex = Arc::new(Mutex::new(PlayingState::NotPlaying));
@@ -114,8 +121,7 @@ impl LineLauncher {
         note_off_triggerer.listen();
         let mut duration_between_sixteenth_notes = DurationBetweenSixteenthNotes::new();
         let mut midi_message_bus = Bus::new(100);
-        let (mut duration_ratio, duration_ratio_receiver) = match config.midi.duration_ratio_slider
-        {
+        let (mut duration_ratio, duration_ratio_receiver) = match duration_ratio_slider {
             Some(duration_ratio_slider) => (
                 Some(1.0),
                 listen_for_duration_control_changes(
@@ -251,15 +257,6 @@ impl LineLauncher {
                     state
                 );
             }
-        }
-    }
-}
-
-impl From<Progression> for LineLauncher {
-    fn from(progression: Progression) -> Self {
-        Self {
-            lines: Line::all(),
-            progression,
         }
     }
 }

@@ -1,6 +1,6 @@
 pub mod message;
 
-use crate::{config::midi::MidiSlider, Message, Result};
+use crate::{Message, MidiSlider, Result};
 use anyhow::anyhow;
 use midir::{MidiInput, MidiInputPort};
 use num_traits::Num;

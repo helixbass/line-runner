@@ -7,7 +7,7 @@ mod model;
 mod result;
 
 pub use beat_number::BeatNumber;
-pub use config::Config;
+pub use config::{midi::MidiSlider, Config};
 pub use line_launcher::LineLauncher;
 pub use midi::message::Message;
 pub use midi_clock_tracker::MidiClockTracker;

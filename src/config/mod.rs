@@ -4,12 +4,14 @@ use midi::Midi;
 
 use serde::Deserialize;
 
-use crate::Result;
+use crate::{Progression, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub midi: Midi,
+    #[serde(default)]
+    pub progression: Progression,
 }
 
 impl Config {
@@ -22,6 +24,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             midi: Midi::default(),
+            progression: Progression::default(),
         }
     }
 }

@@ -32,6 +32,8 @@ midi:
   duration_ratio_slider:
     channel: 1
     control_change: 1 # modulation wheel
+# progression is optional, defaults to staying in the key of C
+progression: C C C C Eb Eb Eb Eb
 ```
 
 ```shell
