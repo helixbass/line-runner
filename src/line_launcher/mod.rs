@@ -1,12 +1,14 @@
+use bus::Bus;
 use midir::MidiOutputConnection;
 use rand::Rng;
 use std::sync::{
     mpsc::{Receiver, Sender},
     Arc, Mutex,
 };
+use std::thread;
 use std::time::{Duration, SystemTime};
 
-use crate::{BeatNumber, Line, Message, MidiMessagePublisher, Progression};
+use crate::{BeatNumber, Line, Message, Progression};
 
 mod midi_message_sender;
 use midi_message_sender::MidiMessageSender;
@@ -81,12 +83,13 @@ impl LineLauncher {
         note_off_triggerer.listen();
         let mut duration_between_sixteenth_notes = DurationBetweenSixteenthNotes::new();
         let duration_percent = Arc::new(Mutex::new(100.0));
-        let mut midi_message_publisher = MidiMessagePublisher::new(midi_messages);
-        listen_for_duration_control_changes(
-            midi_message_publisher.get_receiver(),
-            duration_percent.clone(),
-        );
-        midi_message_publisher.listen();
+        let mut midi_message_bus = Bus::new(100);
+        listen_for_duration_control_changes(midi_message_bus.add_rx(), duration_percent.clone());
+        thread::spawn(move || {
+            for midi_message in midi_messages.iter() {
+                midi_message_bus.broadcast(midi_message);
+            }
+        });
         loop {
             let beat_message = beat_message_receiver.recv().unwrap();
             duration_between_sixteenth_notes =

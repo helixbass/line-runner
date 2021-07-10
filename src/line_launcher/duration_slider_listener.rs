@@ -1,10 +1,11 @@
 use crate::{config, config::midi::MidiSlider, midi, Message};
-use std::sync::{mpsc::Receiver, Arc, Mutex};
+use bus::BusReader;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use wmidi::Channel;
 
 pub fn listen_for_duration_control_changes(
-    midi_messages_receiver: Receiver<Message>,
+    mut midi_messages_receiver: BusReader<Message>,
     value: Arc<Mutex<f64>>,
 ) {
     thread::spawn(move || {
