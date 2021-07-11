@@ -1,6 +1,6 @@
 use crate::{Chord, Result};
 use combine::{parser::char::spaces, sep_by, Parser, Stream};
-use serde::{Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer};
 use std::fmt;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -55,7 +55,7 @@ impl<'de> Deserialize<'de> for Progression {
         TDeserializer: Deserializer<'de>,
     {
         let progression_string: String = Deserialize::deserialize(deserializer)?;
-        Ok(Progression::parse(&progression_string).unwrap())
+        Progression::parse(&progression_string).map_err(de::Error::custom)
     }
 }
 
