@@ -8,7 +8,7 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-use crate::{BeatNumber, Line, Message, Progression};
+use crate::{BeatNumber, Line, Message, MidiSlider, Progression};
 
 mod midi_message_sender;
 use midi_message_sender::MidiMessageSender;
@@ -99,11 +99,19 @@ pub struct LineLauncher {
 }
 
 impl LineLauncher {
+    pub fn from(progression: Progression) -> Self {
+        Self {
+            lines: Line::all(),
+            progression,
+        }
+    }
+
     pub fn listen(
         &self,
         beat_message_receiver: Receiver<BeatNumber>,
         output: MidiOutputConnection,
-        midi_messages: Receiver<Message>,
+        midi_messages: Option<Receiver<Message>>,
+        duration_ratio_slider: Option<MidiSlider>,
     ) {
         let midi_message_sender = MidiMessageSender::new(output);
         let state_mutex = Arc::new(Mutex::new(PlayingState::NotPlaying));
@@ -112,15 +120,27 @@ impl LineLauncher {
             NoteOffTriggerer::new(midi_message_sender.clone(), state_mutex.clone());
         note_off_triggerer.listen();
         let mut duration_between_sixteenth_notes = DurationBetweenSixteenthNotes::new();
-        let mut duration_ratio = 1.0;
         let mut midi_message_bus = Bus::new(100);
-        let duration_ratio_receiver =
-            listen_for_duration_control_changes(midi_message_bus.add_rx());
-        thread::spawn(move || {
-            for midi_message in midi_messages.iter() {
-                midi_message_bus.broadcast(midi_message);
-            }
-        });
+        let (mut duration_ratio, duration_ratio_receiver) = match duration_ratio_slider {
+            Some(duration_ratio_slider) => (
+                Some(1.0),
+                listen_for_duration_control_changes(
+                    midi_message_bus.add_rx(),
+                    duration_ratio_slider,
+                ),
+            ),
+            None => (None, {
+                let (_sender, receiver) = mpsc::channel();
+                receiver
+            }),
+        };
+        if let Some(midi_messages) = midi_messages {
+            thread::spawn(move || {
+                for midi_message in midi_messages.iter() {
+                    midi_message_bus.broadcast(midi_message);
+                }
+            });
+        }
         for message in
             get_combined_message_receiver(beat_message_receiver, duration_ratio_receiver).iter()
         {
@@ -161,7 +181,7 @@ impl LineLauncher {
                     };
                 }
                 CombinedMessage::DurationRatioMessage(new_duration_ratio) => {
-                    duration_ratio = new_duration_ratio;
+                    duration_ratio = Some(new_duration_ratio);
                 }
             }
         }
@@ -174,7 +194,7 @@ impl LineLauncher {
         beat_message: BeatNumber,
         note_off_sender: &Sender<NoteOffInstruction>,
         duration_between_sixteenth_notes: &DurationBetweenSixteenthNotes,
-        duration_ratio: f64,
+        duration_ratio: Option<f64>,
     ) -> PlayingState {
         match state {
             PlayingState::Playing {
@@ -207,17 +227,19 @@ impl LineLauncher {
                 if beat_message == next_note.start {
                     let next_note_with_offset = next_note.note.step(pitch_offset).unwrap();
                     midi_message_sender.fire_note_on(next_note_with_offset);
-                    if let Some(duration_between_sixteenth_notes) =
-                        duration_between_sixteenth_notes.get_duration()
-                    {
-                        note_off_sender
-                            .send(NoteOffInstruction {
-                                note: next_note_with_offset,
-                                time: SystemTime::now()
-                                    + duration_between_sixteenth_notes.mul_f64(duration_ratio),
-                                note_index: next_note_index,
-                            })
-                            .unwrap();
+                    if let Some(duration_ratio) = duration_ratio {
+                        if let Some(duration_between_sixteenth_notes) =
+                            duration_between_sixteenth_notes.get_duration()
+                        {
+                            note_off_sender
+                                .send(NoteOffInstruction {
+                                    note: next_note_with_offset,
+                                    time: SystemTime::now()
+                                        + duration_between_sixteenth_notes.mul_f64(duration_ratio),
+                                    note_index: next_note_index,
+                                })
+                                .unwrap();
+                        }
                     }
                     return PlayingState::Playing {
                         line_index,
@@ -235,15 +257,6 @@ impl LineLauncher {
                     state
                 );
             }
-        }
-    }
-}
-
-impl From<Progression> for LineLauncher {
-    fn from(progression: Progression) -> Self {
-        Self {
-            lines: Line::all(),
-            progression,
         }
     }
 }

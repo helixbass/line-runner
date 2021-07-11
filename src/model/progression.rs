@@ -1,5 +1,6 @@
 use crate::{Chord, Result};
 use combine::{parser::char::spaces, sep_by, Parser, Stream};
+use serde::{de, Deserialize, Deserializer};
 use std::fmt;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -28,6 +29,12 @@ impl Progression {
     }
 }
 
+impl Default for Progression {
+    fn default() -> Self {
+        Self::parse("C").unwrap()
+    }
+}
+
 impl fmt::Display for Progression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string = self
@@ -37,6 +44,18 @@ impl fmt::Display for Progression {
             .collect::<Vec<_>>()
             .join(" ");
         f.write_str(&string)
+    }
+}
+
+impl<'de> Deserialize<'de> for Progression {
+    fn deserialize<TDeserializer>(
+        deserializer: TDeserializer,
+    ) -> std::result::Result<Self, TDeserializer::Error>
+    where
+        TDeserializer: Deserializer<'de>,
+    {
+        let progression_string: String = Deserialize::deserialize(deserializer)?;
+        Progression::parse(&progression_string).map_err(de::Error::custom)
     }
 }
 

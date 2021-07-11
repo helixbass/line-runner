@@ -1,6 +1,6 @@
 pub mod message;
 
-use crate::{config::midi::MidiSlider, Message, Result};
+use crate::{Message, MidiSlider, Result};
 use anyhow::anyhow;
 use midir::{MidiInput, MidiInputPort};
 use num_traits::Num;
@@ -20,7 +20,7 @@ pub fn listen_for_input(port_name: &str) -> Result<Receiver<Message>> {
     Ok(receiver)
 }
 
-fn port_names() -> Result<Vec<String>> {
+pub fn port_names() -> Result<Vec<String>> {
     let midi_input = midi_input()?;
     midi_input
         .ports()
