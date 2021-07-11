@@ -4,7 +4,7 @@ use std::env;
 use std::fs;
 use wmidi::MidiMessage;
 
-use line_runner::{midi, Config, LineLauncher, Message, MidiClockTracker, Result};
+use line_runner::{config, midi, Config, LineLauncher, Message, MidiClockTracker, Result};
 
 fn main() -> Result<()> {
     let config = get_config()?;
@@ -43,8 +43,14 @@ fn main() -> Result<()> {
         None => None,
     };
 
-    let (progression, duration_ratio_slider) =
-        (config.progression, config.midi.duration_ratio_slider);
+    let Config {
+        progression,
+        midi: config::midi::Midi {
+            duration_ratio_slider,
+            ..
+        },
+        ..
+    } = config;
     let line_launcher = LineLauncher::from(progression);
     line_launcher.listen(
         beat_message_receiver,
