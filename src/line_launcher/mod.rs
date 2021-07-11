@@ -2,7 +2,7 @@ use bus::Bus;
 use midir::MidiOutputConnection;
 use rand::Rng;
 use std::sync::{
-    mpsc::{Receiver, Sender},
+    mpsc::{self, Receiver, Sender},
     Arc, Mutex,
 };
 use std::thread;
@@ -63,6 +63,36 @@ impl DurationBetweenSixteenthNotes {
     }
 }
 
+pub enum CombinedMessage {
+    BeatMessage(BeatNumber),
+    DurationRatioMessage(f64),
+}
+
+pub fn get_combined_message_receiver(
+    beat_message_receiver: Receiver<BeatNumber>,
+    duration_ratio_receiver: Receiver<f64>,
+) -> Receiver<CombinedMessage> {
+    let (sender, receiver) = mpsc::channel();
+    let beat_message_sender = sender.clone();
+    thread::spawn(move || {
+        for beat_message in beat_message_receiver.iter() {
+            beat_message_sender
+                .send(CombinedMessage::BeatMessage(beat_message))
+                .unwrap();
+        }
+    });
+    thread::spawn(move || {
+        for duration_ratio_message in duration_ratio_receiver.iter() {
+            sender
+                .send(CombinedMessage::DurationRatioMessage(
+                    duration_ratio_message,
+                ))
+                .unwrap();
+        }
+    });
+    receiver
+}
+
 pub struct LineLauncher {
     lines: Vec<Line>,
     pub progression: Progression,
@@ -82,49 +112,58 @@ impl LineLauncher {
             NoteOffTriggerer::new(midi_message_sender.clone(), state_mutex.clone());
         note_off_triggerer.listen();
         let mut duration_between_sixteenth_notes = DurationBetweenSixteenthNotes::new();
-        let duration_ratio = Arc::new(Mutex::new(1.0));
+        let mut duration_ratio = 1.0;
         let mut midi_message_bus = Bus::new(100);
-        listen_for_duration_control_changes(midi_message_bus.add_rx(), duration_ratio.clone());
+        let duration_ratio_receiver =
+            listen_for_duration_control_changes(midi_message_bus.add_rx());
         thread::spawn(move || {
             for midi_message in midi_messages.iter() {
                 midi_message_bus.broadcast(midi_message);
             }
         });
-        loop {
-            let beat_message = beat_message_receiver.recv().unwrap();
-            duration_between_sixteenth_notes =
-                duration_between_sixteenth_notes.process_beat_message(&beat_message);
-            if beat_message.is_beginning_of_measure() {
-                progression_state.tick_measure();
-            }
-            let mut state = state_mutex.lock().unwrap();
-            *state = match *state {
-                PlayingState::NotPlaying if beat_message.is_beginning_of_measure() => {
-                    *state = PlayingState::Playing {
-                        line_index: rand::thread_rng().gen_range(0..self.lines.len()),
-                        next_note_index: 0,
-                        pitch_offset: progression_state.current_chord().pitch.index(),
-                        has_fired_previous_note_off: true,
+        for message in
+            get_combined_message_receiver(beat_message_receiver, duration_ratio_receiver).iter()
+        {
+            match message {
+                CombinedMessage::BeatMessage(beat_message) => {
+                    duration_between_sixteenth_notes =
+                        duration_between_sixteenth_notes.process_beat_message(&beat_message);
+                    if beat_message.is_beginning_of_measure() {
+                        progression_state.tick_measure();
+                    }
+                    let mut state = state_mutex.lock().unwrap();
+                    *state = match *state {
+                        PlayingState::NotPlaying if beat_message.is_beginning_of_measure() => {
+                            *state = PlayingState::Playing {
+                                line_index: rand::thread_rng().gen_range(0..self.lines.len()),
+                                next_note_index: 0,
+                                pitch_offset: progression_state.current_chord().pitch.index(),
+                                has_fired_previous_note_off: true,
+                            };
+                            self.possibly_trigger_notes(
+                                *state,
+                                &midi_message_sender,
+                                beat_message,
+                                &note_off_sender,
+                                &duration_between_sixteenth_notes,
+                                duration_ratio,
+                            )
+                        }
+                        PlayingState::Playing { .. } => self.possibly_trigger_notes(
+                            *state,
+                            &midi_message_sender,
+                            beat_message,
+                            &note_off_sender,
+                            &duration_between_sixteenth_notes,
+                            duration_ratio,
+                        ),
+                        _ => *state,
                     };
-                    self.possibly_trigger_notes(
-                        *state,
-                        &midi_message_sender,
-                        beat_message,
-                        &note_off_sender,
-                        &duration_between_sixteenth_notes,
-                        &duration_ratio,
-                    )
                 }
-                PlayingState::Playing { .. } => self.possibly_trigger_notes(
-                    *state,
-                    &midi_message_sender,
-                    beat_message,
-                    &note_off_sender,
-                    &duration_between_sixteenth_notes,
-                    &duration_ratio,
-                ),
-                _ => *state,
-            };
+                CombinedMessage::DurationRatioMessage(new_duration_ratio) => {
+                    duration_ratio = new_duration_ratio;
+                }
+            }
         }
     }
 
@@ -135,7 +174,7 @@ impl LineLauncher {
         beat_message: BeatNumber,
         note_off_sender: &Sender<NoteOffInstruction>,
         duration_between_sixteenth_notes: &DurationBetweenSixteenthNotes,
-        duration_ratio: &Arc<Mutex<f64>>,
+        duration_ratio: f64,
     ) -> PlayingState {
         match state {
             PlayingState::Playing {
@@ -175,8 +214,7 @@ impl LineLauncher {
                             .send(NoteOffInstruction {
                                 note: next_note_with_offset,
                                 time: SystemTime::now()
-                                    + duration_between_sixteenth_notes
-                                        .mul_f64(*duration_ratio.lock().unwrap()),
+                                    + duration_between_sixteenth_notes.mul_f64(duration_ratio),
                                 note_index: next_note_index,
                             })
                             .unwrap();
