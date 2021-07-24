@@ -32,6 +32,10 @@ midi:
   duration_ratio_slider:
     channel: 1
     control_change: 1 # modulation wheel
+  # ahead_or_behind_the_beat_ratio_slider is optional
+  ahead_or_behind_the_beat_ratio_slider:
+    channel: 1
+    control_change: 2
 # progression is optional, defaults to staying in the key of C
 progression: C C C C Eb Eb Eb Eb
 ```

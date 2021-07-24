@@ -52,10 +52,12 @@ fn main() -> Result<()> {
 
     let Config {
         progression,
-        midi: config::midi::Midi {
-            duration_ratio_slider,
-            ..
-        },
+        midi:
+            config::midi::Midi {
+                duration_ratio_slider,
+                ahead_or_behind_the_beat_ratio_slider,
+                ..
+            },
         ..
     } = config;
     let line_launcher = LineLauncher::from(progression);
@@ -64,6 +66,7 @@ fn main() -> Result<()> {
         conn_out,
         midi_messages,
         duration_ratio_slider,
+        ahead_or_behind_the_beat_ratio_slider,
     );
 
     Ok(())

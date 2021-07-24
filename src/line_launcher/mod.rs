@@ -23,8 +23,8 @@ use playing_state::PlayingState;
 mod progression_state;
 use progression_state::ProgressionState;
 
-mod duration_slider_listener;
-use duration_slider_listener::listen_for_duration_control_changes;
+mod control_change_listener;
+use control_change_listener::listen_for_control_changes;
 
 enum DurationBetweenSixteenthNotes {
     Uninitialized,
@@ -67,6 +67,7 @@ impl DurationBetweenSixteenthNotes {
 pub enum CombinedMessage {
     BeatMessage(BeatNumber),
     DurationRatioMessage(f64),
+    AheadOrBehindTheBeatRatioMessage(f64),
     FireNoteOnMessage(FireNoteOnMessage),
     FireNoteOffMessage(FireNoteOffMessage),
 }
@@ -74,6 +75,7 @@ pub enum CombinedMessage {
 pub fn get_combined_message_receiver(
     beat_message_receiver: Receiver<BeatNumber>,
     duration_ratio_receiver: Receiver<f64>,
+    ahead_or_behind_the_beat_ratio_receiver: Receiver<f64>,
     fire_note_on_receiver: Receiver<FireNoteOnMessage>,
     fire_note_off_receiver: Receiver<FireNoteOffMessage>,
 ) -> Receiver<CombinedMessage> {
@@ -102,11 +104,22 @@ pub fn get_combined_message_receiver(
                 .unwrap();
         }
     });
+    let duration_ratio_sender = sender.clone();
     thread::spawn(move || {
         for duration_ratio_message in duration_ratio_receiver.iter() {
-            sender
+            duration_ratio_sender
                 .send(CombinedMessage::DurationRatioMessage(
                     duration_ratio_message,
+                ))
+                .unwrap();
+        }
+    });
+    thread::spawn(move || {
+        for ahead_or_behind_the_beat_ratio_message in ahead_or_behind_the_beat_ratio_receiver.iter()
+        {
+            sender
+                .send(CombinedMessage::AheadOrBehindTheBeatRatioMessage(
+                    ahead_or_behind_the_beat_ratio_message,
                 ))
                 .unwrap();
         }
@@ -133,6 +146,7 @@ impl LineLauncher {
         output: MidiOutputConnection,
         midi_messages: Option<Receiver<Message>>,
         duration_ratio_slider: Option<MidiSlider>,
+        ahead_or_behind_the_beat_ratio_slider: Option<MidiSlider>,
     ) {
         let midi_message_sender = MidiMessageSender::new(output);
         let mut playing_state = PlayingState::NotPlaying;
@@ -148,16 +162,27 @@ impl LineLauncher {
         let (mut duration_ratio, duration_ratio_receiver) = match duration_ratio_slider {
             Some(duration_ratio_slider) => (
                 Some(1.0),
-                listen_for_duration_control_changes(
-                    midi_message_bus.add_rx(),
-                    duration_ratio_slider,
-                ),
+                listen_for_control_changes(midi_message_bus.add_rx(), duration_ratio_slider),
             ),
             None => (None, {
                 let (_sender, receiver) = mpsc::channel();
                 receiver
             }),
         };
+        let (mut ahead_or_behind_the_beat_ratio, ahead_or_behind_the_beat_ratio_receiver) =
+            match ahead_or_behind_the_beat_ratio_slider {
+                Some(ahead_or_behind_the_beat_ratio_slider) => (
+                    Some(0.5),
+                    listen_for_control_changes(
+                        midi_message_bus.add_rx(),
+                        ahead_or_behind_the_beat_ratio_slider,
+                    ),
+                ),
+                None => (None, {
+                    let (_sender, receiver) = mpsc::channel();
+                    receiver
+                }),
+            };
         if let Some(midi_messages) = midi_messages {
             thread::spawn(move || {
                 for midi_message in midi_messages.iter() {
@@ -168,6 +193,7 @@ impl LineLauncher {
         for message in get_combined_message_receiver(
             beat_message_receiver,
             duration_ratio_receiver,
+            ahead_or_behind_the_beat_ratio_receiver,
             fire_note_on_receiver,
             fire_note_off_receiver,
         )
@@ -206,6 +232,7 @@ impl LineLauncher {
                                 beat_message,
                                 &schedule_note_on_sender,
                                 &duration_between_sixteenth_notes,
+                                &ahead_or_behind_the_beat_ratio,
                             );
                         }
                         PlayingState::Playing { .. } => {
@@ -214,6 +241,7 @@ impl LineLauncher {
                                 beat_message,
                                 &schedule_note_on_sender,
                                 &duration_between_sixteenth_notes,
+                                &ahead_or_behind_the_beat_ratio,
                             );
                         }
                         _ => (),
@@ -222,6 +250,15 @@ impl LineLauncher {
                 CombinedMessage::DurationRatioMessage(new_duration_ratio) => {
                     debug!("duration ratio change: {}", new_duration_ratio);
                     duration_ratio = Some(new_duration_ratio);
+                }
+                CombinedMessage::AheadOrBehindTheBeatRatioMessage(
+                    new_ahead_or_behind_the_beat_ratio,
+                ) => {
+                    debug!(
+                        "ahead or behind the beat ratio change: {}",
+                        new_ahead_or_behind_the_beat_ratio
+                    );
+                    ahead_or_behind_the_beat_ratio = Some(new_ahead_or_behind_the_beat_ratio);
                 }
                 CombinedMessage::FireNoteOffMessage(fire_note_off_message) => match playing_state {
                     PlayingState::Playing {
@@ -343,6 +380,7 @@ impl LineLauncher {
         beat_message: BeatNumber,
         schedule_note_on_sender: &Sender<ScheduleNoteOnMessage>,
         duration_between_sixteenth_notes: &DurationBetweenSixteenthNotes,
+        ahead_or_behind_the_beat_ratio: &Option<f64>,
     ) {
         match *playing_state {
             PlayingState::Playing {
@@ -352,9 +390,11 @@ impl LineLauncher {
                 next_note_off_index,
             } => {
                 let line = &self.lines[line_index];
+                if next_note_index >= line.notes.len() {
+                    return;
+                }
                 let next_note = &line.notes[next_note_index];
                 if beat_message.add_sixteenths(1) == next_note.start {
-                    // let next_note_with_offset = next_note.note.step(pitch_offset).unwrap();
                     if let Some(duration_between_sixteenth_notes) =
                         duration_between_sixteenth_notes.get_duration()
                     {
@@ -366,7 +406,11 @@ impl LineLauncher {
                         schedule_note_on_sender
                             .send(ScheduleNoteOnMessage {
                                 time: SystemTime::now()
-                                    + duration_between_sixteenth_notes.mul_f64(1.0 - 0.2),
+                                    + duration_between_sixteenth_notes.mul_f64(
+                                        1.0 + ((0.5
+                                            - ahead_or_behind_the_beat_ratio.unwrap_or(0.5))
+                                            * 2.0),
+                                    ),
                                 note_index: next_note_index,
                             })
                             .unwrap();
@@ -392,135 +436,4 @@ impl LineLauncher {
             }
         }
     }
-
-    //         let next_note = &line.notes[next_note_index];
-    //         if beat_message == next_note.start {
-    //             let next_note_with_offset = next_note.note.step(pitch_offset).unwrap();
-    //             midi_message_sender.fire_note_on(next_note_with_offset);
-    //             if let Some(duration_ratio) = duration_ratio {
-    //                 if let Some(duration_between_sixteenth_notes) =
-    //                     duration_between_sixteenth_notes.get_duration()
-    //                 {
-    //                     note_off_sender
-    //                         .send(NoteOffInstruction {
-    //                             note: next_note_with_offset,
-    //                             time: SystemTime::now()
-    //                                 + duration_between_sixteenth_notes.mul_f64(duration_ratio),
-    //                             note_index: next_note_index,
-    //                         })
-    //                         .unwrap();
-    //                 }
-    //             }
-    //             return PlayingState::Playing {
-    //                 line_index,
-    //                 next_note_index: next_note_index + 1,
-    //                 pitch_offset,
-    //                 next_note_off_index: use_next_note_off_index,
-    //             };
-    //         }
-
-    //         playing_state
-
-    //         self.midi_message_sender
-    //             .fire_note_off(note_off_instruction.note);
-
-    //         *playing_state = PlayingState::Playing {
-    //             line_index,
-    //             next_note_index,
-    //             pitch_offset,
-    //             next_note_off_index: note_off_instruction.note_index,
-    //         };
-    //     }
-    //     _ => *playing_state,
-    // };
-
-    // fn possibly_trigger_notes2(
-    //     &self,
-    //     playing_state: PlayingState,
-    //     midi_message_sender: &MidiMessageSender,
-    //     beat_message: BeatNumber,
-    //     note_on_sender: &Sender<NoteOnInstruction>,
-    //     duration_between_sixteenth_notes: &DurationBetweenSixteenthNotes,
-    //     duration_ratio: Option<f64>,
-    // ) {
-    //     match playing_state {
-    //         PlayingState::Playing {
-    //             line_index,
-    //             next_note_index,
-    //             pitch_offset,
-    //             next_note_off_index,
-    //         } => {
-    //             let line = &self.lines[line_index];
-    //             let mut updated_next_note_off_index: Option<usize> = None;
-    //             if next_note_index > 0 && next_note_off_index < next_note_index {
-    //                 for note_index in next_note_off_index..next_note_index {
-    //                     let note = &line.notes[note_index];
-    //                     if beat_message.minus_sixteenths(note.duration) == note.start {
-    //                         midi_message_sender
-    //                             .fire_note_off(note.note.step(pitch_offset).unwrap());
-    //                         updated_next_note_off_index = Some(note_index + 1);
-    //                     }
-    //                 }
-    //             }
-    //             let use_next_note_off_index =
-    //                 updated_next_note_off_index.unwrap_or(next_note_off_index);
-    //             if next_note_index == line.notes.len() {
-    //                 return if use_next_note_off_index == next_note_index {
-    //                     PlayingState::NotPlaying
-    //                 } else {
-    //                     PlayingState::Playing {
-    //                         line_index,
-    //                         next_note_index,
-    //                         pitch_offset,
-    //                         next_note_off_index: use_next_note_off_index,
-    //                     }
-    //                 };
-    //             }
-    //             let next_note = &line.notes[next_note_index];
-    //             if beat_message.add_sixteenths(1) == next_note.start {
-    //                 let next_note_with_offset = next_note.note.step(pitch_offset).unwrap();
-    //                 note_on_sender
-    //                     .send(NoteOnInstruction {
-    //                         note: next_note_with_offset,
-    //                         time: SystemTime::now()
-    //                             + duration_between_sixteenth_notes.mul_f64(1.0 - 0.2),
-    //                         note_index: next_note_index,
-    //                     })
-    //                     .unwrap();
-    //             }
-    //             if beat_message == next_note.start {
-    //                 let next_note_with_offset = next_note.note.step(pitch_offset).unwrap();
-    //                 midi_message_sender.fire_note_on(next_note_with_offset);
-    //                 if let Some(duration_ratio) = duration_ratio {
-    //                     if let Some(duration_between_sixteenth_notes) =
-    //                         duration_between_sixteenth_notes.get_duration()
-    //                     {
-    //                         note_off_sender
-    //                             .send(NoteOffInstruction {
-    //                                 note: next_note_with_offset,
-    //                                 time: SystemTime::now()
-    //                                     + duration_between_sixteenth_notes.mul_f64(duration_ratio),
-    //                                 note_index: next_note_index,
-    //                             })
-    //                             .unwrap();
-    //                     }
-    //                 }
-    //                 return PlayingState::Playing {
-    //                     line_index,
-    //                     next_note_index: next_note_index + 1,
-    //                     pitch_offset,
-    //                     next_note_off_index: use_next_note_off_index,
-    //                 };
-    //             }
-
-    //             playing_state
-    //         }
-    //         _ => {
-    //             panic!(
-    //                 "Called possibly_trigger_notes() while not playing: {:?}",
-    //                 playing_state
-    //             );
-    //         }
-    //     }
-    // }
 }
