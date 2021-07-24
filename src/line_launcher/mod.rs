@@ -352,7 +352,7 @@ impl LineLauncher {
                                     .unwrap();
                             }
                         }
-                        playing_state = if use_next_note_off_index == line.notes.len() - 1 {
+                        playing_state = if use_next_note_off_index >= line.notes.len() {
                             PlayingState::NotPlaying
                         } else {
                             PlayingState::Playing {
