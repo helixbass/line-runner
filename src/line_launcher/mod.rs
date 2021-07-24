@@ -148,7 +148,7 @@ impl LineLauncher {
                 CombinedMessage::BeatMessage(beat_message) => {
                     duration_between_sixteenth_notes =
                         duration_between_sixteenth_notes.process_beat_message(&beat_message);
-                    if beat_message.is_beginning_of_measure() {
+                    if !progression_state.has_started() && beat_message.is_beginning_of_measure() {
                         progression_state.tick_measure();
                     }
                     let mut state = state_mutex.lock().unwrap();
@@ -179,6 +179,9 @@ impl LineLauncher {
                         ),
                         _ => *state,
                     };
+                    if beat_message.is_next_beginning_of_measure() {
+                        progression_state.tick_measure();
+                    }
                 }
                 CombinedMessage::DurationRatioMessage(new_duration_ratio) => {
                     duration_ratio = Some(new_duration_ratio);

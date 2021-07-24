@@ -8,6 +8,10 @@ impl BeatNumber {
         self.sixteenth_note == 0
     }
 
+    pub fn is_next_beginning_of_measure(&self) -> bool {
+        self.sixteenth_note == 15
+    }
+
     pub fn minus_sixteenths(&self, num_sixteenths: u32) -> BeatNumber {
         BeatNumber {
             sixteenth_note: (self.sixteenth_note as i32 - num_sixteenths as i32) as u32 % 16,
