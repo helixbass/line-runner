@@ -2,6 +2,7 @@ pub mod message;
 
 use crate::{Message, MidiSlider, Result};
 use anyhow::anyhow;
+use log::*;
 use midir::{MidiInput, MidiInputPort};
 use num_traits::Num;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -12,7 +13,7 @@ use wmidi::{ControlValue, MidiMessage};
 pub fn listen_for_input(port_name: &str) -> Result<Receiver<Message>> {
     let port = port(port_name)?;
 
-    println!("MIDI input: {}", port_name);
+    info!("MIDI input: {}", port_name);
 
     let (sender, receiver) = mpsc::channel();
     handle_messages(port, sender);

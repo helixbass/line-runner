@@ -1,3 +1,4 @@
+use log::*;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::SystemTime;
@@ -42,7 +43,7 @@ impl NoteOffScheduler {
     pub fn listen(self) -> JoinHandle<()> {
         thread::spawn(move || loop {
             let schedule_note_off_message = self.schedule_note_off_receiver.recv().unwrap();
-            println!(
+            debug!(
                 "Received schedule_note_off_message: {:?}",
                 schedule_note_off_message,
             );
@@ -55,7 +56,7 @@ impl NoteOffScheduler {
 
             spin_sleep::sleep(from_now);
 
-            println!(
+            debug!(
                 "Sending fire note off, note_index: {}",
                 schedule_note_off_message.note_index,
             );

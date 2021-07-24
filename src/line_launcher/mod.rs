@@ -1,4 +1,5 @@
 use bus::Bus;
+use log::*;
 use midir::MidiOutputConnection;
 use rand::Rng;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -174,7 +175,7 @@ impl LineLauncher {
         {
             match message {
                 CombinedMessage::BeatMessage(beat_message) => {
-                    println!(
+                    debug!(
                         "beat message: {:?}, now: {:?}",
                         beat_message,
                         SystemTime::now()
@@ -219,7 +220,7 @@ impl LineLauncher {
                     };
                 }
                 CombinedMessage::DurationRatioMessage(new_duration_ratio) => {
-                    println!("duration ratio change: {}", new_duration_ratio);
+                    debug!("duration ratio change: {}", new_duration_ratio);
                     duration_ratio = Some(new_duration_ratio);
                 }
                 CombinedMessage::FireNoteOffMessage(fire_note_off_message) => match playing_state {
@@ -233,7 +234,7 @@ impl LineLauncher {
                         let note = &line.notes[fire_note_off_message.note_index];
                         let note_with_offset = note.note.step(pitch_offset).unwrap();
 
-                        println!("Firing note off: {:?}", fire_note_off_message);
+                        debug!("Firing note off: {:?}", fire_note_off_message);
                         midi_message_sender.fire_note_off(note_with_offset);
 
                         playing_state = if fire_note_off_message.note_index == line.notes.len() - 1
@@ -254,13 +255,13 @@ impl LineLauncher {
                             ..
                         } = playing_state
                         {
-                            println!(
+                            debug!(
                                 "Received fire note off message with note index < next_note_off_index ({}): {:?}",
                                 next_note_off_index,
                                 fire_note_off_message
                             );
                         } else {
-                            println!(
+                            debug!(
                                 "Received fire note off message while not playing: {:?}",
                                 fire_note_off_message
                             );
@@ -276,11 +277,11 @@ impl LineLauncher {
                     } => {
                         let line = &self.lines[line_index];
                         let mut updated_next_note_off_index: Option<usize> = None;
-                        println!("Received fire note on message: {:?}", fire_note_on_message);
+                        debug!("Received fire note on message: {:?}", fire_note_on_message);
                         if fire_note_on_message.note_index > 0
                             && next_note_off_index < fire_note_on_message.note_index
                         {
-                            println!(
+                            debug!(
                                 "Synchronously firing note off's, next_note_off_index: {}",
                                 next_note_off_index
                             );
@@ -300,7 +301,7 @@ impl LineLauncher {
                             if let Some(duration_between_sixteenth_notes) =
                                 duration_between_sixteenth_notes.get_duration()
                             {
-                                println!(
+                                debug!(
                                     "Sending schedule note off message, note_index: {}, now: {:?}, duration_ratio: {}",
                                     fire_note_on_message.note_index, SystemTime::now(), duration_ratio
                                 );
@@ -357,7 +358,7 @@ impl LineLauncher {
                     if let Some(duration_between_sixteenth_notes) =
                         duration_between_sixteenth_notes.get_duration()
                     {
-                        println!(
+                        debug!(
                             "Sending schedule note on message, note_index: {}, now: {:?}",
                             next_note_index,
                             SystemTime::now()

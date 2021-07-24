@@ -1,3 +1,4 @@
+use log::*;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::SystemTime;
@@ -42,7 +43,7 @@ impl NoteOnScheduler {
     pub fn listen(self) -> JoinHandle<()> {
         thread::spawn(move || loop {
             let schedule_note_on_message = self.schedule_note_on_receiver.recv().unwrap();
-            println!(
+            debug!(
                 "Received schedule_note_on_message: {:?}",
                 schedule_note_on_message,
             );
@@ -53,11 +54,11 @@ impl NoteOnScheduler {
                 .duration_since(now)
                 .unwrap_or_default();
 
-            println!("Sleeping, now: {:?}, from_now: {:?}", now, from_now);
+            debug!("Sleeping, now: {:?}, from_now: {:?}", now, from_now);
 
             spin_sleep::sleep(from_now);
 
-            println!(
+            debug!(
                 "Sending fire note on, note_index: {}, now: {:?}",
                 schedule_note_on_message.note_index,
                 SystemTime::now()
