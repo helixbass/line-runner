@@ -1,3 +1,4 @@
+use log::*;
 use midir::os::unix::{VirtualInput, VirtualOutput};
 use midir::{MidiInput, MidiOutput};
 use std::env;
@@ -7,6 +8,12 @@ use wmidi::MidiMessage;
 use line_runner::{config, midi, Config, LineLauncher, Message, MidiClockTracker, Result};
 
 fn main() -> Result<()> {
+    stderrlog::new()
+        .module(module_path!())
+        .verbosity(2)
+        .init()
+        .unwrap();
+
     let config = get_config()?;
 
     let midi_out = MidiOutput::new("Line runner").unwrap();
@@ -32,7 +39,7 @@ fn main() -> Result<()> {
     let midi_port_names = midi::port_names()?;
 
     if config.midi.port.is_none() && !midi_port_names.is_empty() {
-        println!(
+        warn!(
             "Config is missing 'midi.port'. Available MIDI ports are:\n{}",
             midi_port_names.join("\n")
         );
@@ -45,10 +52,12 @@ fn main() -> Result<()> {
 
     let Config {
         progression,
-        midi: config::midi::Midi {
-            duration_ratio_slider,
-            ..
-        },
+        midi:
+            config::midi::Midi {
+                duration_ratio_slider,
+                ahead_or_behind_the_beat_ratio_slider,
+                ..
+            },
         ..
     } = config;
     let line_launcher = LineLauncher::from(progression);
@@ -57,6 +66,7 @@ fn main() -> Result<()> {
         conn_out,
         midi_messages,
         duration_ratio_slider,
+        ahead_or_behind_the_beat_ratio_slider,
     );
 
     Ok(())
@@ -77,7 +87,7 @@ fn get_config() -> Result<Config> {
 }
 
 fn config_from_path(path: &str) -> Result<Config> {
-    println!("Reading config from {}", path);
+    info!("Reading config from {}", path);
 
     let contents = fs::read_to_string(path)?;
     Config::from(&contents)

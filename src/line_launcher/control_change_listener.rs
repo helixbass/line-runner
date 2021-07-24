@@ -3,7 +3,7 @@ use bus::BusReader;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 
-pub fn listen_for_duration_control_changes(
+pub fn listen_for_control_changes(
     mut midi_messages_receiver: BusReader<Message>,
     slider: MidiSlider,
 ) -> Receiver<f64> {

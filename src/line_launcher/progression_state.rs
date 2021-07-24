@@ -42,4 +42,11 @@ impl<'progression> ProgressionState<'progression> {
             }
         }
     }
+
+    pub fn has_started(&self) -> bool {
+        !matches!(
+            self.chord_index_state,
+            ProgressionChordIndexState::HaventStarted
+        )
+    }
 }

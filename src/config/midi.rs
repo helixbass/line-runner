@@ -6,6 +6,7 @@ use wmidi::{Channel, ControlFunction, U7};
 pub struct Midi {
     pub port: Option<String>,
     pub duration_ratio_slider: Option<MidiSlider>,
+    pub ahead_or_behind_the_beat_ratio_slider: Option<MidiSlider>,
 }
 
 impl Default for Midi {
@@ -13,6 +14,7 @@ impl Default for Midi {
         Self {
             port: None,
             duration_ratio_slider: None,
+            ahead_or_behind_the_beat_ratio_slider: None,
         }
     }
 }
