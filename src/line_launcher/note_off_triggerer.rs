@@ -52,11 +52,11 @@ impl NoteOffTriggerer {
 
             match *playing_state {
                 PlayingState::Playing {
-                    has_fired_previous_note_off: false,
+                    next_note_off_index,
                     line_index,
                     next_note_index,
                     pitch_offset,
-                } if next_note_index == note_off_instruction.note_index + 1 => {
+                } if next_note_off_index <= note_off_instruction.note_index => {
                     self.midi_message_sender
                         .fire_note_off(note_off_instruction.note);
 
@@ -64,7 +64,7 @@ impl NoteOffTriggerer {
                         line_index,
                         next_note_index,
                         pitch_offset,
-                        has_fired_previous_note_off: true,
+                        next_note_off_index: note_off_instruction.note_index,
                     };
                 }
                 _ => (),

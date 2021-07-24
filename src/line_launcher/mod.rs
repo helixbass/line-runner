@@ -158,7 +158,7 @@ impl LineLauncher {
                                 line_index: rand::thread_rng().gen_range(0..self.lines.len()),
                                 next_note_index: 0,
                                 pitch_offset: progression_state.current_chord().pitch.index(),
-                                has_fired_previous_note_off: true,
+                                next_note_off_index: 0,
                             };
                             self.possibly_trigger_notes(
                                 *state,
@@ -201,26 +201,32 @@ impl LineLauncher {
                 line_index,
                 next_note_index,
                 pitch_offset,
-                has_fired_previous_note_off,
+                next_note_off_index,
             } => {
                 let line = &self.lines[line_index];
-                let mut did_trigger_note_off = false;
-                if next_note_index > 0 {
-                    let last_played_note = &line.notes[next_note_index - 1];
-                    if !has_fired_previous_note_off
-                        && beat_message.minus_sixteenths(last_played_note.duration)
-                            == last_played_note.start
-                    {
-                        midi_message_sender
-                            .fire_note_off(last_played_note.note.step(pitch_offset).unwrap());
-                        did_trigger_note_off = true;
+                let mut updated_next_note_off_index: Option<usize> = None;
+                if next_note_index > 0 && next_note_off_index < next_note_index {
+                    for note_index in next_note_off_index..next_note_index {
+                        let note = &line.notes[note_index];
+                        if beat_message.minus_sixteenths(note.duration) == note.start {
+                            midi_message_sender
+                                .fire_note_off(note.note.step(pitch_offset).unwrap());
+                            updated_next_note_off_index = Some(note_index + 1);
+                        }
                     }
                 }
+                let use_next_note_off_index =
+                    updated_next_note_off_index.unwrap_or(next_note_off_index);
                 if next_note_index == line.notes.len() {
-                    return if did_trigger_note_off || has_fired_previous_note_off {
+                    return if use_next_note_off_index == next_note_index {
                         PlayingState::NotPlaying
                     } else {
-                        state
+                        PlayingState::Playing {
+                            line_index,
+                            next_note_index,
+                            pitch_offset,
+                            next_note_off_index: use_next_note_off_index,
+                        }
                     };
                 }
                 let next_note = &line.notes[next_note_index];
@@ -245,7 +251,7 @@ impl LineLauncher {
                         line_index,
                         next_note_index: next_note_index + 1,
                         pitch_offset,
-                        has_fired_previous_note_off: false,
+                        next_note_off_index: use_next_note_off_index,
                     };
                 }
 
