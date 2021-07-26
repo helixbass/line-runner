@@ -2,7 +2,7 @@ use crate::Result;
 use std::convert::TryFrom;
 use wmidi::MidiMessage;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
     pub timestamp: u64,
     pub message: MidiMessage<'static>,
