@@ -45,4 +45,35 @@ impl Line {
         .collect::<Result<Vec<_>>>()
         .unwrap()
     }
+
+    pub fn outside_of_the_key_lines() -> Vec<Line> {
+        vec![
+            "- - - A4 G4 E4 C4 E4 D4",
+            "- - - F4 E4 C4 Bb3 C4 E4 G4 Bb4 D5 C5",
+            "- - - F4 E4 C4 Bb3 C4 E4 G4 Bb4 D5 C5 Bb4 G4 Ab4 A4",
+            "- - - Eb4 E4 G4 Bb4 G4 D5 C5 Bb4 A4 G4",
+            "- - - D5 C5 G4 E4 Bb4 G4 F4 D4 Eb4 E4",
+            "- - - D5 C5 G4 E4 Bb4 G4 F4 D4 F4 E4",
+            "- - - Bb3 C4 Eb4 G4 Bb4 D5 Eb5 C5 Bb4 A4",
+            "- - - Bb3 C4 Eb4 Gb4 G4 A4 Bb4 Gb4 A4 G4",
+            "- - - Bb3 C4 Eb4 Gb4 G4 A4 Bb4 Gb4 A4 G4 Gb4 F4 E4 Eb4",
+            "- - - D4 C4 A4 G4 D5 C5 A5 G5 F5 E5",
+            "- - - D5 C5 Bb4 A4 Ab4 G4 Gb4 F4 Eb4 E4",
+            "- - - D5 C5 Bb4 A4 Ab4 G4 Gb4 F4 G4 E4",
+            "- - - E4 C4 G3 E4 F4 G4 A4 Bb4 A4 G4",
+            "- - - E4 C4 G3 E4 F4 G4 A4 Bb4 A4 G4 A4 Bb4 D5 C5",
+            "- - - E4 C4 G3 E4 F4 G4 A4 Bb4 A4 G4 Gb4 F4 G4 E4",
+            "- - - E4 C4 G3 E4 F4 G4 A4 Bb4 A4 G4 Gb4 F4 Eb4 E4",
+            "- - - E5 C5 G4 F4 Eb4 E4",
+            "- - - E5 C5 G4 F4 Eb4 E4 C5 Bb4 A4 G4",
+            "- - - E5 C5 G4 F4 Eb4 E4 C5 Bb4 D5 C5",
+            "- - - E5 C5 G4 F4 Eb4 E4 C5 Bb4 D5 C5 Bb4 G4 F4 G4",
+            "- - - Eb4 E4 C5 Bb4 D5 C5",
+            "- - - Eb4 E4 C5 Bb4 D5 C5 Bb4 A4 Ab4 G4",
+        ]
+        .into_iter()
+        .map(Self::parse)
+        .collect::<Result<Vec<_>>>()
+        .unwrap()
+    }
 }
