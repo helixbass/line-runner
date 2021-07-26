@@ -56,6 +56,7 @@ fn main() -> Result<()> {
             config::midi::Midi {
                 duration_ratio_slider,
                 ahead_or_behind_the_beat_ratio_slider,
+                randomize_note_start_time_ratio_slider,
                 ..
             },
         ..
@@ -67,6 +68,7 @@ fn main() -> Result<()> {
         midi_messages,
         duration_ratio_slider,
         ahead_or_behind_the_beat_ratio_slider,
+        randomize_note_start_time_ratio_slider,
     );
 
     Ok(())

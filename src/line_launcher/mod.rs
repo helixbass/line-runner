@@ -1,7 +1,7 @@
 use bus::Bus;
 use log::*;
 use midir::MidiOutputConnection;
-use rand::Rng;
+use rand::{prelude::ThreadRng, Rng};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, SystemTime};
@@ -68,6 +68,7 @@ pub enum CombinedMessage {
     BeatMessage(BeatNumber),
     DurationRatioMessage(f64),
     AheadOrBehindTheBeatRatioMessage(f64),
+    RandomizeNoteStartTimeRatioMessage(f64),
     FireNoteOnMessage(FireNoteOnMessage),
     FireNoteOffMessage(FireNoteOffMessage),
 }
@@ -76,6 +77,7 @@ pub fn get_combined_message_receiver(
     beat_message_receiver: Receiver<BeatNumber>,
     duration_ratio_receiver: Receiver<f64>,
     ahead_or_behind_the_beat_ratio_receiver: Receiver<f64>,
+    randomize_note_start_time_ratio_receiver: Receiver<f64>,
     fire_note_on_receiver: Receiver<FireNoteOnMessage>,
     fire_note_off_receiver: Receiver<FireNoteOffMessage>,
 ) -> Receiver<CombinedMessage> {
@@ -114,6 +116,18 @@ pub fn get_combined_message_receiver(
                 .unwrap();
         }
     });
+    let randomize_note_start_time_ratio_sender = sender.clone();
+    thread::spawn(move || {
+        for randomize_note_start_time_ratio_message in
+            randomize_note_start_time_ratio_receiver.iter()
+        {
+            randomize_note_start_time_ratio_sender
+                .send(CombinedMessage::RandomizeNoteStartTimeRatioMessage(
+                    randomize_note_start_time_ratio_message,
+                ))
+                .unwrap();
+        }
+    });
     thread::spawn(move || {
         for ahead_or_behind_the_beat_ratio_message in ahead_or_behind_the_beat_ratio_receiver.iter()
         {
@@ -147,6 +161,7 @@ impl LineLauncher {
         midi_messages: Option<Receiver<Message>>,
         duration_ratio_slider: Option<MidiSlider>,
         ahead_or_behind_the_beat_ratio_slider: Option<MidiSlider>,
+        randomize_note_start_time_ratio_slider: Option<MidiSlider>,
     ) {
         let midi_message_sender = MidiMessageSender::new(output);
         let mut playing_state = PlayingState::NotPlaying;
@@ -183,6 +198,20 @@ impl LineLauncher {
                     receiver
                 }),
             };
+        let (mut randomize_note_start_time_ratio, randomize_note_start_time_ratio_receiver) =
+            match randomize_note_start_time_ratio_slider {
+                Some(randomize_note_start_time_ratio_slider) => (
+                    Some(0.0),
+                    listen_for_control_changes(
+                        midi_message_bus.add_rx(),
+                        randomize_note_start_time_ratio_slider,
+                    ),
+                ),
+                None => (None, {
+                    let (_sender, receiver) = mpsc::channel();
+                    receiver
+                }),
+            };
         if let Some(midi_messages) = midi_messages {
             thread::spawn(move || {
                 for midi_message in midi_messages.iter() {
@@ -190,10 +219,12 @@ impl LineLauncher {
                 }
             });
         }
+        let mut thread_rng = rand::thread_rng();
         for message in get_combined_message_receiver(
             beat_message_receiver,
             duration_ratio_receiver,
             ahead_or_behind_the_beat_ratio_receiver,
+            randomize_note_start_time_ratio_receiver,
             fire_note_on_receiver,
             fire_note_off_receiver,
         )
@@ -222,7 +253,7 @@ impl LineLauncher {
                                 ) =>
                         {
                             playing_state = PlayingState::Playing {
-                                line_index: rand::thread_rng().gen_range(0..self.lines.len()),
+                                line_index: thread_rng.gen_range(0..self.lines.len()),
                                 next_note_index: 0,
                                 pitch_offset: progression_state.current_chord().pitch.index(),
                                 next_note_off_index: 0,
@@ -233,6 +264,8 @@ impl LineLauncher {
                                 &schedule_note_on_sender,
                                 &duration_between_sixteenth_notes,
                                 &ahead_or_behind_the_beat_ratio,
+                                &randomize_note_start_time_ratio,
+                                &mut thread_rng,
                             );
                         }
                         PlayingState::Playing { .. } => {
@@ -242,6 +275,8 @@ impl LineLauncher {
                                 &schedule_note_on_sender,
                                 &duration_between_sixteenth_notes,
                                 &ahead_or_behind_the_beat_ratio,
+                                &randomize_note_start_time_ratio,
+                                &mut thread_rng,
                             );
                         }
                         _ => (),
@@ -259,6 +294,15 @@ impl LineLauncher {
                         new_ahead_or_behind_the_beat_ratio
                     );
                     ahead_or_behind_the_beat_ratio = Some(new_ahead_or_behind_the_beat_ratio);
+                }
+                CombinedMessage::RandomizeNoteStartTimeRatioMessage(
+                    new_randomize_note_start_time_ratio,
+                ) => {
+                    debug!(
+                        "randomize note start time ratio change: {}",
+                        new_randomize_note_start_time_ratio
+                    );
+                    randomize_note_start_time_ratio = Some(new_randomize_note_start_time_ratio);
                 }
                 CombinedMessage::FireNoteOffMessage(fire_note_off_message) => match playing_state {
                     PlayingState::Playing {
@@ -374,6 +418,7 @@ impl LineLauncher {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn possibly_schedule_note_on(
         &self,
         playing_state: &mut PlayingState,
@@ -381,6 +426,8 @@ impl LineLauncher {
         schedule_note_on_sender: &Sender<ScheduleNoteOnMessage>,
         duration_between_sixteenth_notes: &DurationBetweenSixteenthNotes,
         ahead_or_behind_the_beat_ratio: &Option<f64>,
+        randomize_note_start_time_ratio: &Option<f64>,
+        thread_rng: &mut ThreadRng,
     ) {
         match *playing_state {
             PlayingState::Playing {
@@ -403,13 +450,23 @@ impl LineLauncher {
                             next_note_index,
                             SystemTime::now()
                         );
+                        let random_ratio_of_duration_between_sixteenth_notes =
+                            if let Some(randomize_note_start_time_ratio) =
+                                randomize_note_start_time_ratio
+                            {
+                                (thread_rng.gen::<f64>() - 0.5) * randomize_note_start_time_ratio
+                            } else {
+                                0.0
+                            };
                         schedule_note_on_sender
                             .send(ScheduleNoteOnMessage {
                                 time: SystemTime::now()
                                     + duration_between_sixteenth_notes.mul_f64(
-                                        1.0 + ((0.5
+                                        (1.0 + ((0.5
                                             - ahead_or_behind_the_beat_ratio.unwrap_or(0.5))
-                                            * 2.0),
+                                            * 2.0)
+                                            + random_ratio_of_duration_between_sixteenth_notes)
+                                            .max(0.0),
                                     ),
                                 note_index: next_note_index,
                             })

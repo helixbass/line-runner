@@ -7,6 +7,7 @@ pub struct Midi {
     pub port: Option<String>,
     pub duration_ratio_slider: Option<MidiSlider>,
     pub ahead_or_behind_the_beat_ratio_slider: Option<MidiSlider>,
+    pub randomize_note_start_time_ratio_slider: Option<MidiSlider>,
 }
 
 impl Default for Midi {
@@ -15,6 +16,7 @@ impl Default for Midi {
             port: None,
             duration_ratio_slider: None,
             ahead_or_behind_the_beat_ratio_slider: None,
+            randomize_note_start_time_ratio_slider: None,
         }
     }
 }
