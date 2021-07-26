@@ -36,6 +36,10 @@ midi:
   ahead_or_behind_the_beat_ratio_slider:
     channel: 1
     control_change: 2
+  # randomize_note_start_time_ratio_slider is optional
+  randomize_note_start_time_ratio_slider:
+    channel: 1
+    control_change: 3
 # progression is optional, defaults to staying in the key of C
 progression: C C C C Eb Eb Eb Eb
 ```
