@@ -4,6 +4,10 @@ pub struct BeatNumber {
 }
 
 impl BeatNumber {
+    pub fn new(sixteenth_note: u32) -> Self {
+        Self { sixteenth_note }
+    }
+
     pub fn is_beginning_of_measure(&self) -> bool {
         self.sixteenth_note == 0
     }
@@ -26,6 +30,10 @@ impl BeatNumber {
 
     pub fn duration_since(&self, other: &BeatNumber) -> u32 {
         (self.sixteenth_note + 16 - other.sixteenth_note) % 16
+    }
+
+    pub fn increment(&mut self) {
+        self.sixteenth_note = (self.sixteenth_note + 1) % 16;
     }
 }
 
