@@ -448,8 +448,10 @@ impl LineLauncher {
                     {
                         let (new_line_index, new_outside_of_the_key_offset) = self
                             .find_line_in_different_key(
+                                &planned_notes,
                                 last_planned_line_index,
                                 last_planned_outside_of_the_key_offset,
+                                &mut thread_rng,
                             );
                         last_planned_line_index = new_line_index;
                         last_planned_outside_of_the_key_offset = new_outside_of_the_key_offset;
@@ -459,6 +461,22 @@ impl LineLauncher {
                             last_planned_outside_of_the_key_offset,
                             next_measure_beat.incremented(),
                         );
+                        debug!(
+                            "Planned overlapping line index {} and outside of the key offset {}:",
+                            last_planned_line_index, last_planned_outside_of_the_key_offset
+                        );
+                        for (planned_note_index, planned_note) in
+                            planned_notes.planned_notes.iter().enumerate()
+                        {
+                            debug!(
+                                "planned_note_index {} note on: {:?}",
+                                planned_note_index, planned_note.note_on
+                            );
+                            debug!(
+                                "planned_note_index {} note off: {:?}",
+                                planned_note_index, planned_note.note_off
+                            );
+                        }
                     }
 
                     next_measure_beat.increment();
@@ -493,13 +511,12 @@ impl LineLauncher {
                             "Note off already fired for planned_note_index: {}",
                             fire_note_off_message.planned_note_index
                         );
-                        return;
+                    } else {
+                        debug!("Firing note off: {:?}", fire_note_off_message);
+                        midi_message_sender.fire_note_off(planned_note.note_off.note);
+
+                        planned_note.has_note_off_fired = true;
                     }
-
-                    debug!("Firing note off: {:?}", fire_note_off_message);
-                    midi_message_sender.fire_note_off(planned_note.note_off.note);
-
-                    planned_note.has_note_off_fired = true;
                 }
                 CombinedMessage::FireNoteOnMessage(fire_note_on_message) => {
                     debug!("Received fire note on message: {:?}", fire_note_on_message);
@@ -584,18 +601,88 @@ impl LineLauncher {
 
     fn find_line_in_different_key(
         &self,
+        planned_notes: &PlannedNotes,
         _last_planned_line_index: usize,
         _last_planned_outside_of_the_key_offset: i8,
+        thread_rng: &mut ThreadRng,
     ) -> (usize, i8) {
-        let mut thread_rng = rand::thread_rng();
-        let new_line_index = thread_rng.gen_range(0..self.lines.len());
-        let new_outside_of_the_key_offset = thread_rng.gen_range(0..12);
-        debug!(
-            "found new line index: {} and new outside of the key offset: {}",
-            new_line_index, new_outside_of_the_key_offset
+        let last_two_planned_notes: (u8, u8) = (
+            planned_notes.planned_notes[planned_notes.planned_notes.len() - 2]
+                .note_on
+                .note
+                .into(),
+            planned_notes.planned_notes[planned_notes.planned_notes.len() - 1]
+                .note_on
+                .note
+                .into(),
         );
-        (new_line_index, new_outside_of_the_key_offset)
+        loop {
+            let new_outside_of_the_key_offset = thread_rng.gen_range(0..12);
+            debug!(
+                "Trying to find line for outside_of_the_key_offset {}",
+                new_outside_of_the_key_offset
+            );
+            let mut octave_adjustment: i8 = 0;
+            let new_line_index = self.lines.iter().position(|line| {
+                let first_note_in_new_outside_key: u8 = line.notes[0]
+                    .note
+                    .step(new_outside_of_the_key_offset)
+                    .unwrap()
+                    .into();
+                let (is_within_a_half_step, first_octave_adjustment) = get_is_within_a_half_step(
+                    first_note_in_new_outside_key,
+                    last_two_planned_notes.0,
+                );
+                if !is_within_a_half_step {
+                    return false;
+                }
+                let second_note_in_new_outside_key: u8 = line.notes[1]
+                    .note
+                    .step(new_outside_of_the_key_offset)
+                    .unwrap()
+                    .into();
+                let (is_within_a_half_step, second_octave_adjustment) = get_is_within_a_half_step(
+                    second_note_in_new_outside_key,
+                    last_two_planned_notes.1,
+                );
+                if !is_within_a_half_step {
+                    return false;
+                }
+                if first_octave_adjustment != second_octave_adjustment {
+                    return false;
+                }
+                octave_adjustment = first_octave_adjustment;
+                true
+            });
+            if let Some(new_line_index) = new_line_index {
+                let new_outside_of_the_key_offset_octave_adjusted =
+                    new_outside_of_the_key_offset + octave_adjustment;
+                debug!(
+                    "found line index: {}, octave-adjusted outside_of_the_key_offset: {}",
+                    new_line_index, new_outside_of_the_key_offset_octave_adjusted
+                );
+                return (
+                    new_line_index,
+                    new_outside_of_the_key_offset_octave_adjusted,
+                );
+            }
+        }
     }
+}
+
+fn get_is_within_a_half_step(note_a: u8, note_b: u8) -> (bool, i8) {
+    let raw_difference = note_a as i8 - note_b as i8;
+    let difference_within_same_octave = raw_difference.rem_euclid(12);
+    if difference_within_same_octave == 0 {
+        return (true, -raw_difference);
+    }
+    if difference_within_same_octave == 1 {
+        return (true, -(raw_difference - 1));
+    }
+    if difference_within_same_octave == 11 {
+        return (true, -(raw_difference + 1));
+    }
+    (false, 0)
 }
 
 fn fire_preceding_note_off_if_unfired(
