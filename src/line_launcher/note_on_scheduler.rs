@@ -6,12 +6,12 @@ use std::time::SystemTime;
 #[derive(Debug)]
 pub struct ScheduleNoteOnMessage {
     pub time: SystemTime,
-    pub note_index: usize,
+    pub planned_note_index: usize,
 }
 
 #[derive(Debug)]
 pub struct FireNoteOnMessage {
-    pub note_index: usize,
+    pub planned_note_index: usize,
 }
 
 pub struct NoteOnScheduler {
@@ -59,13 +59,13 @@ impl NoteOnScheduler {
             spin_sleep::sleep(from_now);
 
             debug!(
-                "Sending fire note on, note_index: {}, now: {:?}",
-                schedule_note_on_message.note_index,
+                "Sending fire note on, planned_note_index: {}, now: {:?}",
+                schedule_note_on_message.planned_note_index,
                 SystemTime::now()
             );
             self.fire_note_on_sender
                 .send(FireNoteOnMessage {
-                    note_index: schedule_note_on_message.note_index,
+                    planned_note_index: schedule_note_on_message.planned_note_index,
                 })
                 .unwrap();
         })

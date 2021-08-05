@@ -6,12 +6,12 @@ use std::time::SystemTime;
 #[derive(Debug)]
 pub struct ScheduleNoteOffMessage {
     pub time: SystemTime,
-    pub note_index: usize,
+    pub planned_note_index: usize,
 }
 
 #[derive(Debug)]
 pub struct FireNoteOffMessage {
-    pub note_index: usize,
+    pub planned_note_index: usize,
 }
 
 pub struct NoteOffScheduler {
@@ -57,12 +57,12 @@ impl NoteOffScheduler {
             spin_sleep::sleep(from_now);
 
             debug!(
-                "Sending fire note off, note_index: {}",
-                schedule_note_off_message.note_index,
+                "Sending fire note off, planned_note_index: {}",
+                schedule_note_off_message.planned_note_index,
             );
             self.fire_note_off_sender
                 .send(FireNoteOffMessage {
-                    note_index: schedule_note_off_message.note_index,
+                    planned_note_index: schedule_note_off_message.planned_note_index,
                 })
                 .unwrap();
         })
