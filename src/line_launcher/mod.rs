@@ -243,7 +243,7 @@ impl Default for PlannedNotes {
     }
 }
 
-fn plan_line(
+fn plan_initial_line(
     planned_notes: &mut PlannedNotes,
     line: &Line,
     outside_of_the_key_offset: i8,
@@ -269,6 +269,39 @@ fn plan_line(
             MeasureBeat::new(note.start, current_measure),
             outside_of_the_key_offset,
         ));
+    }
+}
+
+fn plan_overlapping_line(
+    planned_notes: &mut PlannedNotes,
+    line: &Line,
+    outside_of_the_key_offset: i8,
+    start_measure_beat: MeasureBeat,
+) {
+    planned_notes.planned_notes.pop();
+    planned_notes.planned_notes.pop();
+
+    let first_note_start_beat = line.notes[0].start;
+    let sixteenth_notes_offset = start_measure_beat.beat_number.sixteenth_note as i8
+        - first_note_start_beat.sixteenth_note as i8;
+    let mut current_measure = start_measure_beat.measure;
+    let mut last_adjusted_sixteenth_note: Option<u32> = None;
+    for note in line.notes.iter() {
+        let adjusted_sixteenth_note =
+            (note.start.sixteenth_note as i8 + 16 + sixteenth_notes_offset) as u32 % 16;
+        if let Some(last_adjusted_sixteenth_note) = last_adjusted_sixteenth_note {
+            if last_adjusted_sixteenth_note > adjusted_sixteenth_note {
+                current_measure += 1;
+            }
+        }
+
+        planned_notes.push(PlannedNote::new(
+            note,
+            MeasureBeat::new(BeatNumber::new(adjusted_sixteenth_note), current_measure),
+            outside_of_the_key_offset,
+        ));
+
+        last_adjusted_sixteenth_note = Some(adjusted_sixteenth_note);
     }
 }
 
@@ -356,7 +389,7 @@ impl LineLauncher {
         let mut last_planned_line_index = thread_rng.gen_range(0..self.lines.len());
         let mut last_planned_outside_of_the_key_offset = thread_rng.gen_range(0..12);
 
-        plan_line(
+        plan_initial_line(
             &mut planned_notes,
             &self.lines[last_planned_line_index],
             last_planned_outside_of_the_key_offset,
@@ -420,7 +453,7 @@ impl LineLauncher {
                             );
                         last_planned_line_index = new_line_index;
                         last_planned_outside_of_the_key_offset = new_outside_of_the_key_offset;
-                        plan_line(
+                        plan_overlapping_line(
                             &mut planned_notes,
                             &self.lines[last_planned_line_index],
                             last_planned_outside_of_the_key_offset,
