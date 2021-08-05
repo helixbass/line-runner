@@ -444,8 +444,9 @@ impl LineLauncher {
                         &mut thread_rng,
                     );
 
-                    if planned_notes.is_next_beat_message_pickup_to_the_last_note(next_measure_beat)
-                    {
+                    if planned_notes.is_next_beat_message_pickup_to_the_last_note(
+                        next_measure_beat.incremented(),
+                    ) {
                         let (new_line_index, new_outside_of_the_key_offset) = self
                             .find_line_in_different_key(
                                 &planned_notes,
