@@ -224,6 +224,15 @@ impl PlannedNotes {
     pub fn push(&mut self, planned_note: PlannedNote) {
         self.planned_notes.push(planned_note);
     }
+
+    pub fn is_next_beat_message_pickup_to_the_last_note(&self, measure_beat: MeasureBeat) -> bool {
+        let num_planned_notes = self.planned_notes.len();
+        if num_planned_notes < 2 {
+            return false;
+        }
+        let second_to_last_note = &self.planned_notes[num_planned_notes - 2];
+        second_to_last_note.note_on.measure_beat == measure_beat
+    }
 }
 
 impl Default for PlannedNotes {
@@ -344,17 +353,18 @@ impl LineLauncher {
         }
         let mut thread_rng = rand::thread_rng();
 
-        let initial_line_index = thread_rng.gen_range(0..self.lines.len());
-        let initial_outside_of_the_key_offset = thread_rng.gen_range(0..12);
+        let mut last_planned_line_index = thread_rng.gen_range(0..self.lines.len());
+        let mut last_planned_outside_of_the_key_offset = thread_rng.gen_range(0..12);
+
         plan_line(
             &mut planned_notes,
-            &self.lines[initial_line_index],
-            initial_outside_of_the_key_offset,
+            &self.lines[last_planned_line_index],
+            last_planned_outside_of_the_key_offset,
             next_measure_beat.incremented(),
         );
         debug!(
             "Planned line index {} and outside of the key offset {}:",
-            initial_line_index, initial_outside_of_the_key_offset
+            last_planned_line_index, last_planned_outside_of_the_key_offset
         );
         for (planned_note_index, planned_note) in planned_notes.planned_notes.iter().enumerate() {
             debug!(
@@ -400,21 +410,25 @@ impl LineLauncher {
                         &randomize_note_start_time_ratio,
                         &mut thread_rng,
                     );
+
+                    if planned_notes.is_next_beat_message_pickup_to_the_last_note(next_measure_beat)
+                    {
+                        let (new_line_index, new_outside_of_the_key_offset) = self
+                            .find_line_in_different_key(
+                                last_planned_line_index,
+                                last_planned_outside_of_the_key_offset,
+                            );
+                        last_planned_line_index = new_line_index;
+                        last_planned_outside_of_the_key_offset = new_outside_of_the_key_offset;
+                        plan_line(
+                            &mut planned_notes,
+                            &self.lines[last_planned_line_index],
+                            last_planned_outside_of_the_key_offset,
+                            next_measure_beat.incremented(),
+                        );
+                    }
+
                     next_measure_beat.increment();
-                    // if line.is_next_beat_message_pickup_to_the_last_note(
-                    //     beat_message,
-                    //     next_note_index,
-                    // ) {
-                    //     let (new_line_index, new_outside_of_the_key_offset) =
-                    //         self.find_line_in_different_key(line_index);
-                    //     playing_state = PlayingState::Playing {
-                    //         line_index: new_line_index,
-                    //         outside_of_the_key_offset: new_outside_of_the_key_offset,
-                    //         next_note_index: 0,
-                    //         pitch_offset: new_outside_of_the_key_offset,
-                    //         next_note_off_index: 0,
-                    //     };
-                    // }
                 }
                 CombinedMessage::DurationRatioMessage(new_duration_ratio) => {
                     debug!("duration ratio change: {}", new_duration_ratio);
@@ -535,7 +549,11 @@ impl LineLauncher {
             .unwrap();
     }
 
-    fn find_line_in_different_key(&self, _line_index: usize) -> (usize, i8) {
+    fn find_line_in_different_key(
+        &self,
+        _last_planned_line_index: usize,
+        _last_planned_outside_of_the_key_offset: i8,
+    ) -> (usize, i8) {
         let mut thread_rng = rand::thread_rng();
         let new_line_index = thread_rng.gen_range(0..self.lines.len());
         let new_outside_of_the_key_offset = thread_rng.gen_range(0..12);

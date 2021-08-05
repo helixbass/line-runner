@@ -21,18 +21,6 @@ impl Line {
         Self { notes }
     }
 
-    pub fn is_next_beat_message_pickup_to_the_last_note(
-        &self,
-        beat_message: BeatNumber,
-        next_note_index: usize,
-    ) -> bool {
-        if next_note_index != self.notes.len() - 2 {
-            return false;
-        }
-        let second_to_last_note = &self.notes[next_note_index];
-        second_to_last_note.start == beat_message.add_sixteenths(1)
-    }
-
     pub fn all() -> Vec<Line> {
         vec![
             "C4 F3 G3 Bb3 C4 Db4 Eb4 F4 E4 . . .",
