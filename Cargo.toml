@@ -14,7 +14,7 @@ midir = "0.7.0"
 num-traits = "0.2.14"
 rand = "0.8.4"
 serde = { version = "1.0.126", features = ["derive"] }
-serde_yaml = "0.8.17"
+serde_yaml = "0.8.21"
 spin_sleep = "1.0.0"
 strum = "0.21.0"
 strum_macros = "0.21.1"
