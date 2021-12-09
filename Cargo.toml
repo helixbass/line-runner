@@ -13,7 +13,7 @@ combine = "4.6.0"
 midir = "0.7.0"
 num-traits = "0.2.14"
 rand = "0.8.4"
-serde = { version = "1.0.126", features = ["derive"] }
+serde = { version = "1.0.131", features = ["derive"] }
 serde_yaml = "0.8.17"
 spin_sleep = "1.0.0"
 strum = "0.21.0"
