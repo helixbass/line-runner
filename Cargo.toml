@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.42"
 bus = "2.2.3"
-combine = "4.6.0"
+combine = "4.6.4"
 midir = "0.7.0"
 num-traits = "0.2.14"
 rand = "0.8.4"
