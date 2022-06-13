@@ -16,6 +16,6 @@ rand = "0.8.4"
 serde = { version = "1.0.126", features = ["derive"] }
 serde_yaml = "0.8.17"
 spin_sleep = "1.0.0"
-strum = "0.21.0"
+strum = "0.24.1"
 strum_macros = "0.21.1"
 wmidi = "4.0.6"
